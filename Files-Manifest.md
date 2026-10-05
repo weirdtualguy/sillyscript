@@ -1,77 +1,106 @@
 # sillyscript — Complete File Manifest
 
-```
+The single owner of per-module test counts. Every verification gate
+(master-prompt.md, platform-pins.md, SilverBible.md 0.11) is deliberately
+count-free and points HERE. Counts drift; this file is regenerated when
+they do.
+
 ~/sillyscript/
-├── .gitignore                     Excludes node_modules/
-├── package.json                   npm manifest: @noble/hashes, @noble/curves
+├── .gitignore                     node_modules/, *.bak*, session artifacts
+├── package.json                   npm manifest: @noble/hashes ^1.4.0, @noble/curves ^1.6.0
 │
 ├── SilverBible.md                 THE CANON — mental model, covenant mechanics, pattern catalog
-├── platform-pins.md               THE FACTS — empirical protocol pins, codec rules, incident registry
-├── master-prompt.md               THE BOOT SECTOR — session prompt for SilverScript development
-├── SAFETY.md                      THE STRATEGY — mainnet-first development rails & fee guards
-├── README.md                      THE ENTRY POINT — quick-start, provider & typegen guide
-├── Files-Manifest.md              THIS MANIFEST — exhaustive inventory of canonical assets
+├── platform-pins.md               THE FACTS — graded protocol pins, codec rules, incident registry
+├── master-prompt.md               THE BOOT SECTOR — session load order + count-free gate
+├── SAFETY.md                      THE STRATEGY — mainnet-first rails, fee/wallet limits
+├── README.md                      THE ENTRY POINT — quick-start, providers, typegen
+├── Files-Manifest.md              THIS MANIFEST — inventory + test-count owner
 │
-├── index.js                       PACKAGE ROOT: exports Contract, Provider, typegen, & primitives
+├── index.js                       PACKAGE ROOT: exports Contract, Provider, typegen, primitives
 ├── contract.js                    CONTRACT LAYER: state-aware Contract abstraction
 ├── provider.js                    TRANSPORT LAYER: Provider, KaspaRestProvider, MockProvider
-├── silly-typegen.js               TOOLING LAYER: CLI & programmatic TypeScript type generator
+├── silly-compile.js               COMPILE LAYER: silverc invocation + fail-closed verification
+├── silly-typegen.js               TOOLING: CLI & programmatic TypeScript type generator
+├── sil-abi.js                     CODEC 1: artifact loader, tag verifier, state decoder
+├── sil-encoder.js                 CODEC 2: minimal/explicit push builder, columnar struct arrays
+├── kaspa-crypto.js                CRYPTO 3: bech32, covenant ID, P2SH/P2PK formats
+├── kaspa-sighash.js               SIGHASH 4: v1 signing hash (covenant commitments)
+├── kaspa-tx.js                    TX 5: tx builder, computeBudget assignment, mass/fee
+├── kaspa-wrpc.js                  NETWORK 6: wRPC broadcast, endpoint rotation, gauntlet-B4
 │
-├── sil-abi.js                     CODEC MODULE 1: artifact loader, tag verifier, state decoder
-├── sil-encoder.js                 CODEC MODULE 2: minimal/explicit push builder, columnar struct arrays
-├── kaspa-crypto.js                CRYPTO MODULE 3: bech32, covenant ID, P2SH/P2PK formats
-├── kaspa-sighash.js               SIGHASH MODULE 4: v1 transaction signing hash (covenant commitments)
-├── kaspa-tx.js                    TX MODULE 5: tx builder, computeBudget assignment, fee discovery
+├── vesting.sil                    REFERENCE CONTRACT: vesting escrow source
+├── vesting.json                   REFERENCE ARTIFACT: compiled JSON
+├── vesting.d.ts                   REFERENCE TYPES: generated declarations
 │
-├── vesting.sil                    REFERENCE CONTRACT: SilverScript source for vesting escrow
-├── vesting.json                   REFERENCE ARTIFACT: compiled JSON artifact
-├── vesting.d.ts                   REFERENCE TYPES: auto-generated TypeScript declarations
+├── bin/
+│   ├── silly.js                   CLI: setup / init / check (check parses all templates)
+│   └── templates/                 SCAFFOLD SOURCE — copied verbatim by silly init
+│       ├── lib.js.txt             shared runtime: env, keys, record I/O, pending recovery
+│       ├── deploy.js.txt          genesis (bind-after-build, pending crash marker)
+│       ├── interact.js.txt        state transition (record-driven, re-runnable)
+│       └── close.js.txt           termination (budget 60, full carrier to owner)
 │
 └── probes/                        VERIFICATION LAYER
-    ├── verify-tags.js             PROBE 1: conformance sweep across compiled artifacts
-    ├── validate-mainnet.js        PROBE 2: covenant ID validation vs mainnet genesis
-    ├── verify-schnorr-fixed.js    PROBE 3: sighash + schnorr vs live mainnet genesis tx
-    └── gauntlet-v13.js            PROBE 4: full vertical integration test against v13 artifact
-```
+    ├── verify-tags.js             dispatch-tag + template-hash conformance sweep
+    ├── validate-mainnet.js        covenant ID vs mainnet genesis
+    ├── verify-schnorr-fixed.js    sighash + schnorr vs live mainnet genesis
+    └── gauntlet-v13.js            full vertical integration vs v13 artifact
 
-## Documents — The Knowledge Layer
-
-| File | Purpose |
-|---|---|
-| `SilverBible.md` | The canon: mental model (§1), language card (§2), covenant mechanics (§3), DECL macros (§4), pattern catalog P1-P10 (§8), workflow protocol (§9), operating rules for AI agents (§0). |
-| `platform-pins.md` | Every platform fact, graded `[SPEC]/[REF]/[PIN]/[LAW]/[TODO-verify]`: compiler & ABI (§1), codec (§2), crypto (§3), tx & network (§4), environment (§5), incident registry (§6), checklist (§8). |
-| `master-prompt.md` | The session boot sector: load order, verification gate, ten catastrophic-failure rules, interaction protocol. |
-| `SAFETY.md` | Mainnet-first development strategy: mainnet for standard operations, testnet for first-spend smoke tests. Hard limits (MAX_FEE, dedicated dev wallet, cool-down rule). |
-| `README.md` | Entry point: architecture, quick-start guide, provider documentation, typegen CLI guide. |
 
 ## Modules — The Executable Layer
 
 | File | Tests | What it does |
 |---|---|---|
-| `index.js` | — | Unified package entrypoint: exposes `Contract`, `Provider`, `generateTypes`, and core primitives. |
-| `contract.js` | 13 | High-level `Contract` abstraction: state reflection, order-independent arg normalization, next-state derivation, input population, and continuation binding. |
-| `provider.js` | 13 | Decoupled transport layer: abstract `Provider`, production `KaspaRestProvider` (mainnet/testnet), and zero-network in-memory `MockProvider` with local UTXO tracking and block simulation. |
-| `silly-typegen.js` | 15 | CLI and programmatic TypeScript declaration generator: emits typed state interfaces, entry argument schemas, positional tuples, and typed Contract classes directly from `.json` artifacts. |
-| `sil-abi.js` | — | Loads SilverScript artifacts; derives and asserts every dispatch tag (`blake3` formula with `{fields}` struct recursion); verifies template hashes; decodes state spans into `BigInt`. |
-| `sil-encoder.js` | 35 | Builds entry sigscripts from ABI params at runtime; minimal pushes for args, explicit pushes for state; columnar struct array packaging; 250KB consensus gate. |
-| `kaspa-crypto.js` | 19 | Kaspa CashAddr-variant Bech32 addresses; KIP-20 covenant ID computation; P2SH (`aa20...87`) and P2PK (`20...ac`) script public keys; pubkey extraction from UTXO script. |
-| `kaspa-sighash.js` | 4 | Kaspa v1 transaction signing hash: keyed `blake2b('TransactionSigningHash')` over the 16-field preimage with covenant binding commitments. |
-| `kaspa-tx.js` | 27 | Transaction assembly (auto `computeBudget`: P2PK=10, P2SH=60); P2PK and covenant Schnorr signing; mass estimation (`estimateMass`); proactive fee calculation (`proactiveFee`); 64-bit sequence disable (`SEQUENCE_DISABLE`). |
+| `index.js` | — | Unified package entrypoint: Contract, Provider, generateTypes, primitives. |
+| `contract.js` | 18 | High-level Contract: state reflection, arg normalization, next-state derivation, input population, continuation binding. |
+| `provider.js` | 16 | Abstract Provider, KaspaRestProvider (mainnet/testnet), MockProvider with UTXO tracking and block simulation. |
+| `silly-compile.js` | 13 | silverc invocation, constructor-arg baking, fail-closed artifact verification gates. |
+| `silly-typegen.js` | 17 | TypeScript declaration generator: typed state, entry args, tuples, Contract classes. |
+| `sil-abi.js` | — | Artifact loader; derives and asserts dispatch tags; verifies template hashes; decodes state. Verified via consumers and silly check. |
+| `sil-encoder.js` | 35 | Sigscripts from ABI params; minimal arg pushes, explicit state pushes, columnar struct arrays. |
+| `kaspa-crypto.js` | 19 | CashAddr-variant bech32; KIP-20 covenant ID; P2SH/P2PK script public keys. |
+| `kaspa-sighash.js` | 4 | v1 sighash: keyed blake2b over the 16-field preimage with covenant bindings. |
+| `kaspa-tx.js` | 29 | Tx assembly (auto computeBudget 10/60), P2PK and covenant signing, mass/fee estimation. |
+| `kaspa-wrpc.js` | 26 | wRPC broadcast: gauntlet-B4 schema, BigInt serialization, rotation on error and rejection. |
+
+**Total: 177 tests across 9 self-test modules** — `npm test` prints nine
+`ALL n PASS` lines; their sum is the contract.
+
+## The Scaffold — `silly init <name>`
+
+Generates: `contracts/Counter.sil` (close entry uses ScriptPubKeyP2PK —
+pins §3.3b), fail-closed `.env`, `package.json` (sillyscript `file:` link +
+noble pins derived from the library's own package.json), and the four
+lifecycle scripts copied verbatim from `bin/templates/`.
+
+**Lifecycle proven end-to-end on testnet-10 (2026-10-05)**: deploy →
+interact ×2 (the second an UNMODIFIED re-run) → close from elevated state
+(count=2n). Citations in pins §3.3b. Known wart: the 100M change guard
+burns sub-guard change as fee (pins §11 S7) — fix pending the dust-floor
+probe.
 
 ## Probes — The Verification Layer
 
 | File | What it verifies |
 |---|---|
-| `probes/verify-tags.js` | Derives every entry's dispatch tag from artifact params and compares to stored tags; verifies template hashes. |
-| `probes/validate-mainnet.js` | Fetches mainnet genesis tx via REST, computes covenant ID from on-chain data, and verifies against the chain's `covenant_id`. |
-| `probes/verify-schnorr-fixed.js` | Reconstructs sighash from mainnet genesis tx data, extracts pubkey from the UTXO's P2PK script, and verifies the Schnorr signature. |
-| `probes/gauntlet-v13.js` | Four-phase integration test against a live v13 artifact: load, sigscript build, mock transaction assembly, and verification. |
+| `probes/verify-tags.js` | Derives every entry's dispatch tag from artifact params; verifies template hashes. |
+| `probes/validate-mainnet.js` | Fetches mainnet genesis via REST, computes the covenant ID, checks it against the chain. |
+| `probes/verify-schnorr-fixed.js` | Reconstructs the sighash from mainnet genesis data, verifies the schnorr signature. |
+| `probes/gauntlet-v13.js` | Four-phase integration: load, sigscript build, mock tx assembly, verification. |
 
 ## The Dependency Footprint
 
-```
-@noble/hashes@1.4.0     blake2b, blake3
-@noble/curves@1.6.0     schnorr (secp256k1)
-```
+@noble/hashes ^1.4.0     blake2b, blake3
+@noble/curves ^1.6.0     schnorr (secp256k1)
 
-Two packages. Zero WASM. Pure JavaScript. Runs on Termux, Node.js, and modern browser environments.
+Two packages, zero WASM, pure JavaScript. Node and Termux proven; the
+browser claim awaits the isomorphic (Uint8Array) pass — README audit item.
+
+## Publishing Notes (pre-publish checklist)
+
+- `files` whitelist REQUIRED before `npm publish` — the repo now carries git
+  history and strays; the default would ship everything. Must include
+  `bin/` and `bin/templates/` or the scaffold ships broken.
+- noble pinned to 1.x — v2 subpath exports are incompatible (pins §5.3).
+- silverc revision dependency: c7d17a1 proven (pins §1.6) — document in
+  README during the docs audit.

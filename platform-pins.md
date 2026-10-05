@@ -294,6 +294,17 @@ Counter is stranded: 99,800,000 sompi locked at state count=2n (increment
 requires count<100; close is bricked). Recorded as a monument (Bible 9.3):
 test-run/data/deployment.json status=stranded.
 
+Second proof - scaffold acceptance lifecycle (2026-10-05, testnet-10,
+record-driven, zero hand-edits, all confirmed on-chain):
+  genesis    bd4085b147152238bb7a0d49273e1eaee9cfcea223dd090b5fad7bdf68db6491
+  increment  f80152c05f21a35fbec85242d3b12dc171ec81523fdd5baf73f39bfbbcb1eae6  (0->1)
+  increment  53d5d32a876a0b6b316d6fbf826f144c43b26b3d58d61e8a652ad2b73313d029  (1->2, unmodified re-run)
+  close      ec8ee7190fa20b699aefb5b2810e49c76a00cf7c4061caa205d2f4fc38ef72da  (from count=2n)
+First close-from-elevated-state and first unmodified interact re-run in
+project history. Close input computeBudget 60 confirmed at count=2n.
+Continuation outputs of 99,900,000 / 99,800,000 sompi created AND spent:
+outputs below the 1 KAS buildTx dust guidance are consensus-valid (11/S7).
+
 ### 3.4 Sighash v1 [PIN mainnet-verified]
 
     H = keyed_blake2b(key='TransactionSigningHash', 32B out)
@@ -656,3 +667,19 @@ Tradeoff: 6MB WASM dependency vs schema independence.
 Recommended for: browser-based builders, wallet-integrated flows.
 Not recommended for: lightweight Termux/Node environments where
 the kit's pure-JS path is already proven.
+
+## 11. sillyscript Session Addendum (Oct 5, 2026)
+
+| # | Incident | Root cause | Law |
+|---|---|---|---|
+| S1 | Scaffold deploy.js could not parse (top-level await under commonjs) | string-embedded template, never execution-tested | scaffold generates FILES from bin/templates/; silly check node --check gate |
+| S2 | Scaffold fee 31x under proven; single-UTXO funding vs 2-UTXO reality | same - never ran | constants come from confirmed txs; funding via pickUtxosSafe |
+| S3 | Scaffold died MODULE_NOT_FOUND on @noble at first run | file: link exposes the API, not the deps; scaffold never declared its own requires | scaffold derives noble pins from the library package.json at init |
+| S4 | close template shipped computeBudget 100 labeled PROVEN | constant copied from failed-attempt scripts; no confirmed tx ever carried it | never grade a constant without the txid that proves it (Bible 0.4) |
+| S5 | Fee labels conflated selection target with paid fee (3.1M/5M circulated as proven; actuals ~100M) | intended-fee constants graded as proven; nothing compared txFee(tx) to intent | a proven fee is inputs-minus-outputs of a CONFIRMED tx, not a selection target |
+| S6 | Doc counts drifted in two places (187 vs 177; manifest 13/13/15/27 + two modules missing) | counts duplicated across documents | counts have ONE owner (Files-Manifest.md); all gates are count-free |
+| S7 | ~3.86 TKAS burned as excess fee across the 4-tx lifecycle (each tx dropped a 95-97M change output) | change guard (100M) equals the wallet UTXO size (100M) - change always dropped, silently | warn loudly on dropped change; consensus dust floor [TODO-verify] - probe before lowering the guard |
+
+Meta-law (S1-S3): a generator is code that has never run until its output
+has executed. The acceptance lifecycle caught all three scaffold bugs at
+zero sompi of risk; no library primitive failed at any point in the session.
