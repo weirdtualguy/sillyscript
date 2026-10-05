@@ -13,7 +13,7 @@ const fs = require('fs');
 const path = require('path');
 const {
     Contract, KaspaRestProvider, KaspaWrpcProvider,
-    buildTx, signP2PKInput, setGenesisCovenant, p2pkSpk, pickUtxosSafe
+    buildTx, signP2PKInput, setGenesisCovenant, p2pkSpk, pickUtxosSafe, txFee
 } = require('sillyscript');
 const { compile } = require('sillyscript/silly-compile');
 const {
@@ -59,7 +59,7 @@ async function main() {
 
     // ── 2. Fund the genesis from wallet UTXOs (multi-input) ──
     const CARRIER = 100000000n;   // 1 KAS locked in the covenant
-    const FEE = 3100000n;         // proven testnet genesis fee
+    const FEE = 3100000n;         // fee selection target (S5: intent, not a proven paid fee)
     console.log('\n-- Selecting funding UTXOs --');
     const { selected, totalInput } = await pickUtxosSafe(address, CARRIER + FEE, { provider: rest });
     if (totalInput < CARRIER + FEE) {
@@ -82,6 +82,10 @@ async function main() {
     ];
     if (changeAmount >= 100000000n) {
         outputs.push({ amount: changeAmount, script: p2pkSpk(pubKey).toString('hex') });
+    } else if (changeAmount > 0n) {
+        console.log('WARNING: ' + changeAmount + ' sompi change is below the 100M guard -');
+        console.log('         it burns as additional fee (pins 11/S7). Fund with smaller UTXOs');
+        console.log('         or accept the burn.');
     }
 
     // ── 4. Build, then bind the genesis covenant BEFORE signing ──
@@ -97,6 +101,21 @@ async function main() {
     }
     console.log('Covenant ID: ' + covId);
 
+    // Fee sanity (pins 11/S5, S7): txFee is inputs-minus-outputs - it
+    // includes any change the dust guard dropped.
+    const actualFee = txFee(tx);
+    console.log('Fee: ' + actualFee + ' sompi (inputs - outputs)');
+    if (actualFee > 50000000000n) {
+        console.error('FATAL: fee ' + actualFee + ' sompi exceeds the 5 KAS hard limit (SAFETY.md).');
+        process.exit(1);
+    }
+    if (actualFee > FEE * 2n) {
+        if (net === 'mainnet') {
+            console.error('FATAL: fee ' + actualFee + ' sompi is >2x intent ' + FEE + ' - change burning as fee (pins 11/S7). Refusing on mainnet.');
+            process.exit(1);
+        }
+        console.log('WARNING: fee ' + actualFee + ' sompi is >2x intent ' + FEE + ' - change burning as fee (pins 11/S7). Proceeding on ' + net + '.');
+    }
     // ── 5. Sign ──
     for (let i = 0; i < inputs.length; i++) signP2PKInput(tx, i, privKey);
     console.log('Signed ' + inputs.length + ' input(s)');

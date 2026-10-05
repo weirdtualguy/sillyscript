@@ -76,8 +76,9 @@ async function main() {
     console.log('Next state:   ' + JSON.stringify(encodeState(nextState)));
 
     // ── 3. Fee from the wallet ──
-    // Proven testnet values: 3.1M total — 3.0M wallet + 100k off the carrier.
-    // (Fee-discovery wiring is the open upgrade; see handoff.)
+    // Fee selection targets: 3.1M total - 3.0M wallet + 100k off the carrier
+    // (S5: targets are intent, not proven paid fees; fee-discovery wiring
+    // remains the open upgrade).
     const WALLET_FEE = 3000000n;
     const CARRIER_FEE_PART = 100000n;
     console.log('\n-- Selecting fee UTXOs --');
@@ -107,11 +108,27 @@ async function main() {
     ];
     if (changeAmount >= 100000000n) {
         outputs.push({ amount: changeAmount, script: p2pkSpk(pubKey).toString('hex') });
+    } else if (changeAmount > 0n) {
+        console.log('WARNING: ' + changeAmount + ' sompi change is below the 100M guard -');
+        console.log('         it burns as additional fee (pins 11/S7).');
     }
 
     const tx = buildTx(inputs, outputs);
     console.log('Tx: ' + inputs.length + ' inputs, ' + outputs.length + ' outputs, fee ' + txFee(tx) + ' sompi');
-
+    // Fee sanity (pins 11/S5, S7): txFee includes any dropped change.
+    const actualFee = txFee(tx);
+    const feeIntent = WALLET_FEE + CARRIER_FEE_PART;
+    if (actualFee > 50000000000n) {
+        console.error('FATAL: fee ' + actualFee + ' sompi exceeds the 5 KAS hard limit (SAFETY.md).');
+        process.exit(1);
+    }
+    if (actualFee > feeIntent * 2n) {
+        if (net === 'mainnet') {
+            console.error('FATAL: fee ' + actualFee + ' sompi is >2x intent ' + feeIntent + ' - change burning as fee (pins 11/S7). Refusing on mainnet.');
+            process.exit(1);
+        }
+        console.log('WARNING: fee ' + actualFee + ' sompi is >2x intent ' + feeIntent + ' - change burning as fee (pins 11/S7). Proceeding on ' + net + '.');
+    }
     // ── 5. Bind the continuation BEFORE signing ──
     setContinuationCovenant(tx, 0, 0, record.covenantId);
     console.log('Continuation bound to covenant ' + record.covenantId.slice(0, 16) + '...');

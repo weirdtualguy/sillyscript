@@ -12,6 +12,10 @@
 //   pending         { txId, state } | { txId, closeTx: true }
 //                   written immediately after broadcast, cleared on
 //                   adoption — crash recovery between broadcast and record
+//
+// F-07 discipline: pending is a crash POINTER, never a ledger claim -
+// confirmed fields (state, currentStateTx, closed*) are written only
+// after consensus confirmation (Bible 9.2).
 //   closed / closeTx / closedAt   set by close.js after confirmation
 
 const fs = require('fs');

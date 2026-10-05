@@ -305,6 +305,16 @@ project history. Close input computeBudget 60 confirmed at count=2n.
 Continuation outputs of 99,900,000 / 99,800,000 sompi created AND spent:
 outputs below the 1 KAS buildTx dust guidance are consensus-valid (11/S7).
 
+Repeat proof (post fee-gate hardening, same day): the full lifecycle ran
+again with zero hand-edits and every S5/S7 fee warning firing as designed -
+genesis 60579a71260a6b893bbc376af4625b585299e2e5286072aad476a0527db774bc,
+increments a59844a26e135a92feaaf63bd53ddb47af1fb3a40eca8880c13b8d0ab1ae2566
+(0->1) and 18f3fc7e7b4e9b6705656ba624e3e10abbb3313fe7549f153581f3f56a48b1c0
+(1->2, unmodified re-run), close
+c59583762bb191f150de31095aa58aaeca6dc2eb6d47deaac320bee3f39f61ff (from
+count=2n). The scaffold is REPEATEDLY executable; the S7 burn is
+twice-observed at an identical 385.9M sompi per lifecycle.
+
 ### 3.4 Sighash v1 [PIN mainnet-verified]
 
     H = keyed_blake2b(key='TransactionSigningHash', 32B out)
