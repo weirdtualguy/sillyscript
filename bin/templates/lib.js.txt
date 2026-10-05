@@ -1,0 +1,123 @@
+// lib.js — shared runtime for deploy.js / interact.js / close.js
+//
+// Single ownership at project level: .env parsing, key derivation,
+// record I/O, and the BigInt state codec live HERE and nowhere else.
+//
+// data/deployment.json is the project's chain pointer:
+//   network         'testnet' | 'mainnet'
+//   covenantId      covenant ID (hex) — the lineage identity
+//   txId            genesis tx — birth certificate
+//   currentStateTx  tx that created the CURRENT covenant UTXO
+//   state           current state; BigInts as "123n" strings (JSON-safe)
+//   pending         { txId, state } | { txId, closeTx: true }
+//                   written immediately after broadcast, cleared on
+//                   adoption — crash recovery between broadcast and record
+//   closed / closeTx / closedAt   set by close.js after confirmation
+
+const fs = require('fs');
+const { schnorr } = require('@noble/curves/secp256k1');
+const { KaspaRestProvider, p2pkAddress } = require('sillyscript');
+
+const RECORD_PATH = 'data/deployment.json';
+
+function loadEnv() {
+    const env = {};
+    if (!fs.existsSync('.env')) return env;
+    for (const line of fs.readFileSync('.env', 'utf8').split('\n')) {
+        const t = line.trim();
+        if (!t || t.startsWith('#')) continue;
+        const eq = t.indexOf('=');
+        if (eq < 0) continue;
+        env[t.slice(0, eq).trim()] = t.slice(eq + 1).trim();
+    }
+    return env;
+}
+
+function loadRecord() {
+    if (!fs.existsSync(RECORD_PATH)) {
+        console.error('ERROR: ' + RECORD_PATH + ' not found — run npm run deploy first.');
+        process.exit(1);
+    }
+    return JSON.parse(fs.readFileSync(RECORD_PATH, 'utf8'));
+}
+
+function saveRecord(record) {
+    fs.writeFileSync(RECORD_PATH, JSON.stringify(record, null, 2));
+}
+
+// BigInt <-> "123n" string (JSON has no BigInt)
+function decodeState(state) {
+    const out = {};
+    for (const k of Object.keys(state || {})) {
+        const v = state[k];
+        out[k] = (typeof v === 'string' && /^-?[0-9]+n$/.test(v)) ? BigInt(v.slice(0, -1)) : v;
+    }
+    return out;
+}
+
+function encodeState(state) {
+    const out = {};
+    for (const k of Object.keys(state || {})) {
+        out[k] = (typeof state[k] === 'bigint') ? state[k].toString() + 'n' : state[k];
+    }
+    return out;
+}
+
+function loadKeys(env, net) {
+    const PC_PRIV = env.PC_PRIV;
+    if (!PC_PRIV || PC_PRIV.length !== 64 || !/^[0-9a-fA-F]+$/.test(PC_PRIV)) {
+        console.error('ERROR: PC_PRIV must be set in .env (64 hex chars).');
+        console.error("Generate: node -e \"console.log(require('crypto').randomBytes(32).toString('hex'))\"");
+        process.exit(1);
+    }
+    const privKey = Buffer.from(PC_PRIV, 'hex');
+    const pubKey = Buffer.from(schnorr.getPublicKey(privKey));
+    const address = p2pkAddress(net === 'mainnet' ? 'kaspa' : 'kaspatest', pubKey);
+    return { privKey: privKey, pubKey: pubKey, address: address };
+}
+
+// The RECORD owns the network (the covenant lives there). A disagreeing
+// .env fails closed instead of silently targeting another network.
+function resolveNet(record, env) {
+    if (env.PC_NET && record.network && env.PC_NET !== record.network) {
+        console.error('ERROR: .env says ' + env.PC_NET + ' but the covenant is deployed on ' + record.network + '.');
+        process.exit(1);
+    }
+    return record.network || env.PC_NET || 'testnet';
+}
+
+// Adopt an interrupted broadcast. The record is the pointer: a broadcast
+// that leaves no pointer strands the next run on an already-spent UTXO.
+async function resolvePending(record) {
+    const p = record.pending;
+    if (!p) return;
+    console.log('\n-- Resolving pending tx ' + p.txId.slice(0, 16) + '... --');
+    const rest = new KaspaRestProvider(record.network);
+    try {
+        const conf = await rest.waitForConfirmation(p.txId, { timeout: 120000 });
+        console.log('Confirmed: ' + conf.blockHash.slice(0, 20) + '...');
+    } catch (e) {
+        console.error('Pending tx ' + p.txId + ' is not confirmed yet (' + e.message + ').');
+        console.error('Re-run later. If an explorer shows the tx was dropped, remove');
+        console.error('"pending" from ' + RECORD_PATH + ' manually and inspect the covenant.');
+        process.exit(1);
+    }
+    if (p.closeTx) {
+        record.closed = true;
+        record.closeTx = p.txId;
+        record.closedAt = new Date().toISOString();
+    } else {
+        record.currentStateTx = p.txId;
+        record.state = p.state;          // written encoded at broadcast time
+    }
+    delete record.pending;
+    saveRecord(record);
+    console.log('Pending tx adopted into the record.');
+}
+
+module.exports = {
+    loadEnv: loadEnv, loadRecord: loadRecord, saveRecord: saveRecord,
+    decodeState: decodeState, encodeState: encodeState,
+    loadKeys: loadKeys, resolveNet: resolveNet, resolvePending: resolvePending,
+    RECORD_PATH: RECORD_PATH
+};

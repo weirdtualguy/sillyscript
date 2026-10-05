@@ -1,0 +1,143 @@
+// deploy.js — compile and deploy the Counter contract (covenant genesis)
+//
+// Flow: load env -> derive keys -> compile -> pick funding UTXOs -> build
+//       genesis tx -> bind genesis covenant -> sign -> broadcast (wRPC) ->
+//       write record with pending marker -> confirm -> adopt.
+//
+// Crash-safety: the record (with a pending marker) is written immediately
+// after broadcast. If this process dies during confirmation (Android can
+// kill Termux), the next run adopts the pending tx instead of deploying
+// a second covenant and stranding the first carrier.
+
+const fs = require('fs');
+const path = require('path');
+const {
+    Contract, KaspaRestProvider, KaspaWrpcProvider,
+    buildTx, signP2PKInput, setGenesisCovenant, p2pkSpk, pickUtxosSafe
+} = require('sillyscript');
+const { compile } = require('sillyscript/silly-compile');
+const {
+    loadEnv, loadKeys, loadRecord, saveRecord, encodeState,
+    resolvePending, RECORD_PATH
+} = require('./lib');
+
+async function main() {
+    // A record with a pending tx = a previous deploy that died mid-confirm.
+    // Adopt it; never double-deploy.
+    if (fs.existsSync(RECORD_PATH)) {
+        const existing = loadRecord();
+        if (existing.pending) {
+            await resolvePending(existing);
+            console.log('Previous deploy adopted — covenant is live:');
+            console.log('  Covenant ID: ' + existing.covenantId);
+            console.log('  Next: npm run interact');
+            process.exit(0);
+        }
+        console.error('ERROR: ' + RECORD_PATH + ' already exists.');
+        console.error('One project tracks one covenant. Delete the record only if');
+        console.error('the old covenant is closed or abandoned, then re-run.');
+        process.exit(1);
+    }
+
+    const env = loadEnv();
+    const net = env.PC_NET || 'testnet';
+    const keys = loadKeys(env, net);
+    const privKey = keys.privKey, pubKey = keys.pubKey, address = keys.address;
+    console.log('Network: ' + net);
+    console.log('Address: ' + address);
+
+    // ── 1. Compile (owner pubkey baked in as constructor arg) ──
+    console.log('\nCompiling contracts/Counter.sil...');
+    const artifactPath = path.join('data', 'counter-abi.json');
+    compile('./contracts/Counter.sil', [pubKey.toString('hex')], artifactPath);
+    console.log('Compiled and verified.');
+
+    const rest = new KaspaRestProvider(net);
+    const contract = new Contract(artifactPath, { provider: rest });
+    console.log('Contract address: ' + contract.address);
+    console.log('Initial state:    ' + JSON.stringify(encodeState(contract.state)));
+
+    // ── 2. Fund the genesis from wallet UTXOs (multi-input) ──
+    const CARRIER = 100000000n;   // 1 KAS locked in the covenant
+    const FEE = 3100000n;         // proven testnet genesis fee
+    console.log('\n-- Selecting funding UTXOs --');
+    const { selected, totalInput } = await pickUtxosSafe(address, CARRIER + FEE, { provider: rest });
+    if (totalInput < CARRIER + FEE) {
+        console.error('Insufficient: need ' + (CARRIER + FEE) + ' sompi, wallet has ' + totalInput);
+        process.exit(1);
+    }
+    console.log('Selected ' + selected.length + ' UTXO(s), total ' + totalInput + ' sompi');
+    const changeAmount = totalInput - CARRIER - FEE;
+
+    // ── 3. Build the genesis transaction ──
+    const inputs = selected.map(u => ({
+        txId: u.txId, index: u.index, amount: u.amount,
+        spk: p2pkSpk(pubKey).toString('hex'),
+        sequence: 0n, sigOpCount: 0, computeBudget: 10,   // P2PK inputs
+    }));
+
+    // Output 0: covenant genesis. Output 1: change (dust-guarded).
+    const outputs = [
+        { amount: CARRIER, script: contract.scriptPubKey.toString('hex'), covenant: null },
+    ];
+    if (changeAmount >= 100000000n) {
+        outputs.push({ amount: changeAmount, script: p2pkSpk(pubKey).toString('hex') });
+    }
+
+    // ── 4. Build, then bind the genesis covenant BEFORE signing ──
+    // Bind-after-build is the order PROVEN on-chain (test-fixed-close.js).
+    // Bindings are inside the sighash outputs hash: bind after buildTx,
+    // always before any signature exists.
+    const tx = buildTx(inputs, outputs);
+    const covId = setGenesisCovenant(tx, 0, 0);
+    // Fail-closed: the binding must actually live on the tx outputs.
+    if (!tx.outputs[0].covenant) {
+        console.error('FATAL: genesis covenant binding missing after setGenesisCovenant — aborting.');
+        process.exit(1);
+    }
+    console.log('Covenant ID: ' + covId);
+
+    // ── 5. Sign ──
+    for (let i = 0; i < inputs.length; i++) signP2PKInput(tx, i, privKey);
+    console.log('Signed ' + inputs.length + ' input(s)');
+
+    // ── 6. Broadcast via wRPC (testnet REST drops compute_budget) ──
+    console.log('\nBroadcasting...');
+    const wrpc = new KaspaWrpcProvider(net);
+    const result = await wrpc.broadcast(tx);
+    console.log('Broadcast: ' + result.txId);
+
+    // ── 7. Record with pending marker (crash-safety), then confirm ──
+    const record = {
+        network: net,
+        covenantId: covId,
+        txId: result.txId,
+        currentStateTx: result.txId,     // interact's pointer starts at genesis
+        contractAddress: contract.address,
+        deployedAt: new Date().toISOString(),
+        artifact: artifactPath,
+        state: encodeState(contract.state),
+        carrier: CARRIER.toString(),
+        pending: { txId: result.txId, state: encodeState(contract.state) },
+    };
+    saveRecord(record);
+
+    console.log('Waiting for confirmation...');
+    const conf = await rest.waitForConfirmation(result.txId, { timeout: 120000 });
+    console.log('Confirmed in block: ' + conf.blockHash.slice(0, 20) + '...');
+
+    delete record.pending;
+    saveRecord(record);
+
+    console.log('\n✅ Deployed!');
+    console.log('   Covenant ID:      ' + covId);
+    console.log('   Contract address: ' + contract.address);
+    console.log('   Deployment tx:    ' + result.txId);
+    console.log('\nNext: npm run interact   (advances the state)');
+    console.log('      npm run close      (terminates, returns the carrier)');
+}
+
+main().catch(e => {
+    console.error('DEPLOY FAILED: ' + e.message);
+    process.exit(1);
+});

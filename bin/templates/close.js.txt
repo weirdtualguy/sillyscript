@@ -1,0 +1,142 @@
+// close.js — terminate the covenant and return the carrier to the owner
+//
+// The Counter close entry requires:
+//   - the owner signature,
+//   - output 0 to pay the owner (P2PK) the FULL covenant input value,
+//   - OpAuthOutputCount == 0 — NO continuation, the lineage ends.
+//
+// Fee comes from the wallet; the covenant value moves intact.
+// ADAPT (Counter-specific): the entry name 'close' and its args.
+
+const {
+    Contract, KaspaRestProvider, KaspaWrpcProvider,
+    buildTx, signP2PKInput, signCovenantInput,
+    pickUtxosSafe, txFee, p2pkSpk
+} = require('sillyscript');
+const {
+    loadEnv, loadRecord, saveRecord, decodeState,
+    loadKeys, resolveNet, resolvePending
+} = require('./lib');
+
+async function main() {
+    const record = loadRecord();
+    if (record.pending) await resolvePending(record);
+    if (record.closed) {
+        console.error('Covenant already closed (close tx ' + record.closeTx + ').');
+        process.exit(1);
+    }
+
+    const env = loadEnv();
+    const net = resolveNet(record, env);
+    const keys = loadKeys(env, net);
+    const privKey = keys.privKey, pubKey = keys.pubKey, address = keys.address;
+    console.log('Covenant ID: ' + record.covenantId);
+
+    const rest = new KaspaRestProvider(net);
+    const contract = new Contract(record.artifact, { provider: rest });
+    const currentState = decodeState(record.state);
+    contract.setState(currentState);          // state-derived address — FIRST
+    console.log('Current state: ' + JSON.stringify(record.state));
+
+    // ── 1. Find the current covenant UTXO by creator txid ──
+    const creatorTxId = record.currentStateTx || record.lastIncrementTx || record.txId;
+    console.log('\n-- Finding covenant UTXO --');
+    const contractUtxos = await contract.getUtxos();
+    if (contractUtxos.length === 0) {
+        console.error('No UTXOs at the current-state address — covenant may already be closed.');
+        process.exit(1);
+    }
+    const matches = contractUtxos.filter(u => u.txId === creatorTxId);
+    if (matches.length !== 1) {
+        console.error('Creator tx ' + creatorTxId.slice(0, 16) + '... not uniquely found among ' + contractUtxos.length + ' UTXO(s):');
+        for (const u of contractUtxos) console.error('  ' + u.txId.slice(0, 16) + '...:' + u.index + ' = ' + u.amount);
+        process.exit(1);
+    }
+    const covUtxo = matches[0];
+    console.log('Found: ' + covUtxo.txId.slice(0, 16) + '...:' + covUtxo.index + ' = ' + covUtxo.amount + ' sompi');
+
+    // ── 2. Fee from the wallet ──
+    const WALLET_FEE = 5000000n; // proven by the successful on-chain close
+    console.log('\n-- Selecting fee UTXOs --');
+    const { selected, totalInput } = await pickUtxosSafe(address, WALLET_FEE, { provider: rest });
+    console.log('Selected ' + selected.length + ' wallet UTXO(s), total ' + totalInput + ' sompi');
+
+    // ── 3. Build the close tx ──
+    console.log('\n-- Building close tx --');
+    // Input 0: covenant. computeBudget 60 - the value PROVEN by the
+    // successful on-chain close (test-fixed-close.js). The 100 seen in
+    // test-run close attempts only ever ran against the stranded
+    // covenant and was never part of a confirmed transaction.
+    const inputs = [{
+        txId: covUtxo.txId, index: covUtxo.index, amount: covUtxo.amount,
+        spk: contract.scriptPubKey.toString('hex'),
+        sequence: 0n, sigOpCount: 0, computeBudget: 60,
+    }].concat(selected.map(u => ({
+        txId: u.txId, index: u.index, amount: u.amount,
+        spk: p2pkSpk(pubKey).toString('hex'),
+        sequence: 0n, sigOpCount: 0, computeBudget: 10,
+    })));
+
+    // Output 0: FULL covenant value to the owner (the close entry requires
+    // tx.outputs[0].value == the covenant input's value). NO continuation
+    // binding, NO covenant outputs — the lineage ends here.
+    const outputs = [{ amount: covUtxo.amount, script: p2pkSpk(pubKey).toString('hex') }];
+    const changeAmount = totalInput - WALLET_FEE;
+    if (changeAmount >= 100000000n) {
+        outputs.push({ amount: changeAmount, script: p2pkSpk(pubKey).toString('hex') });
+        console.log('Change output: ' + changeAmount + ' sompi');
+    }
+
+    const tx = buildTx(inputs, outputs);
+    console.log('Close tx: ' + inputs.length + ' inputs, ' + outputs.length + ' outputs, fee ' + txFee(tx) + ' sompi');
+    console.log('Covenant value returned to owner: ' + covUtxo.amount + ' sompi');
+
+    // ── 4. Sign ──
+    console.log('\n-- Signing --');
+    // ADAPT: entry name 'close'
+    signCovenantInput(tx, 0, privKey, contract.view, 'close', [], contract.redeemScript);
+    for (let i = 1; i < inputs.length; i++) signP2PKInput(tx, i, privKey);
+    console.log('Signed ' + inputs.length + ' input(s)');
+
+    // ── 5. Broadcast via wRPC ──
+    console.log('\n-- Broadcasting --');
+    const wrpc = new KaspaWrpcProvider(net);
+    const result = await wrpc.broadcast(tx);
+    console.log('Broadcast: ' + result.txId);
+
+    record.pending = { txId: result.txId, closeTx: true };
+    saveRecord(record);
+
+    // ── 6. Confirm ──
+    console.log('\n-- Waiting for confirmation --');
+    const conf = await rest.waitForConfirmation(result.txId, { timeout: 120000 });
+    console.log('Confirmed: ' + conf.blockHash.slice(0, 20) + '...');
+
+    record.closed = true;
+    record.closeTx = result.txId;
+    record.closedAt = new Date().toISOString();
+    delete record.pending;
+    saveRecord(record);
+
+    // ── 7. Observe termination (indexer-level; consensus above is truth) ──
+    await new Promise(r => setTimeout(r, 5000));
+    const remaining = await contract.getUtxos();
+    console.log('\n==========================================');
+    console.log('✅ COVENANT CLOSED');
+    console.log('==========================================');
+    console.log('  Covenant ID: ' + record.covenantId);
+    console.log('  Born:   tx ' + record.txId.slice(0, 16) + '...');
+    console.log('  Moved:  tx ' + (record.currentStateTx || record.txId).slice(0, 16) + '...');
+    console.log('  Closed: tx ' + record.closeTx.slice(0, 16) + '...');
+    console.log('  Carrier returned: ' + covUtxo.amount + ' sompi');
+    if (remaining.length === 0) {
+        console.log('\nNo UTXOs remain at the contract address — lineage ended cleanly.');
+    } else {
+        console.log('\nIndexer still shows ' + remaining.length + ' UTXO(s) (lag) — consensus says closed.');
+    }
+}
+
+main().catch(e => {
+    console.error('CLOSE FAILED: ' + e.message);
+    process.exit(1);
+});

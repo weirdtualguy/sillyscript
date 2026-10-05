@@ -1,0 +1,34 @@
+{
+  "name": "sillyscript",
+  "version": "1.3.0",
+  "description": "Lightweight, pure-JS covenant companion to silverc",
+  "main": "index.js",
+  "bin": {
+    "silly-typegen": "./silly-typegen.js",
+    "silly-compile": "./silly-compile.js",
+    "silly": "./bin/silly.js"
+  },
+  "scripts": {
+    "test": "node sil-encoder.js --test && node kaspa-wrpc.js --test && node provider.js --test && node silly-compile.js --test && node silly-typegen.js --test && node kaspa-crypto.js --test && node kaspa-sighash.js --test && node kaspa-tx.js --test && node contract.js --test"
+  },
+  "keywords": [
+    "kaspa",
+    "silverscript",
+    "sillyscript",
+    "covenants",
+    "smart-contracts",
+    "silverc",
+    "typegen",
+    "provider"
+  ],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@noble/curves": "^1.6.0",
+    "@noble/hashes": "^1.4.0"
+  },
+  "optionalDependencies": {
+    "ws": "^8.22.0"
+  }
+}

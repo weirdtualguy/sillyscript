@@ -1,0 +1,165 @@
+// interact.js — advance the covenant one state step (Counter: count + 1)
+//
+// Flow: resolve pending -> load record -> find CURRENT covenant UTXO ->
+//       build transition tx -> bind continuation -> sign -> broadcast ->
+//       confirm -> adopt state into the record.
+//
+// Fully re-runnable: artifact path, covenant ID, current state, and the
+// UTXO pointer all come from data/deployment.json. Nothing about step N
+// is hardcoded, so steps 1..99 are the same command.
+//
+// [LAW bind-before-sign] setContinuationCovenant runs BEFORE signing:
+// covenant bindings are inside the sighash outputs hash — binding after
+// signing silently invalidates every signature.
+//
+// ADAPT (Counter-specific): the nextState computation, the entry name
+// 'increment', and the entry args. Everything else is contract-agnostic.
+
+const {
+    Contract, KaspaRestProvider, KaspaWrpcProvider,
+    buildTx, signP2PKInput, signCovenantInput,
+    setContinuationCovenant, p2pkSpk, p2shSpk,
+    pickUtxosSafe, txFee
+} = require('sillyscript');
+const {
+    loadEnv, loadRecord, saveRecord, decodeState, encodeState,
+    loadKeys, resolveNet, resolvePending
+} = require('./lib');
+
+async function main() {
+    const record = loadRecord();
+    if (record.pending) await resolvePending(record);
+    if (record.closed) {
+        console.error('Covenant already closed (close tx ' + record.closeTx + ').');
+        process.exit(1);
+    }
+
+    const env = loadEnv();
+    const net = resolveNet(record, env);
+    const keys = loadKeys(env, net);
+    const privKey = keys.privKey, pubKey = keys.pubKey, address = keys.address;
+    console.log('Covenant ID: ' + record.covenantId);
+    console.log('Network:     ' + net);
+
+    const rest = new KaspaRestProvider(net);
+    // Artifact path from the record — never hardcoded.
+    const contract = new Contract(record.artifact, { provider: rest });
+
+    // contract.scriptPubKey / .address / .buildRedeem are STATE-DERIVED.
+    // setState FIRST, always, before any of them is used.
+    const currentState = decodeState(record.state);
+    contract.setState(currentState);
+    console.log('Current state: ' + JSON.stringify(record.state));
+
+    // ── 1. Find the CURRENT covenant UTXO by creator txid ──
+    // (lastIncrementTx fallback supports pre-scaffold records)
+    const creatorTxId = record.currentStateTx || record.lastIncrementTx || record.txId;
+    console.log('\n-- Finding covenant UTXO (creator ' + creatorTxId.slice(0, 16) + '...) --');
+    const contractUtxos = await contract.getUtxos();
+    const matches = contractUtxos.filter(u => u.txId === creatorTxId);
+    if (matches.length === 0) {
+        console.error('Covenant UTXO not found at the current-state address.');
+        console.error('Expected creator tx: ' + creatorTxId);
+        console.error('If the covenant was closed or spent elsewhere, inspect ' + 'data/deployment.json.');
+        process.exit(1);
+    }
+    if (matches.length > 1) {
+        console.error('Ambiguous: ' + matches.length + ' UTXOs from the creator tx:');
+        for (const u of matches) console.error('  :' + u.index + ' = ' + u.amount + ' sompi');
+        process.exit(1);
+    }
+    const covUtxo = matches[0];
+    console.log('Found: ' + covUtxo.txId.slice(0, 16) + '...:' + covUtxo.index + ' = ' + covUtxo.amount + ' sompi');
+
+    // ── 2. ADAPT: next state (Counter: count + 1) ──
+    const nextState = { count: currentState.count + 1n };
+    console.log('Next state:   ' + JSON.stringify(encodeState(nextState)));
+
+    // ── 3. Fee from the wallet ──
+    // Proven testnet values: 3.1M total — 3.0M wallet + 100k off the carrier.
+    // (Fee-discovery wiring is the open upgrade; see handoff.)
+    const WALLET_FEE = 3000000n;
+    const CARRIER_FEE_PART = 100000n;
+    console.log('\n-- Selecting fee UTXOs --');
+    const { selected, totalInput } = await pickUtxosSafe(address, WALLET_FEE, { provider: rest });
+    console.log('Selected ' + selected.length + ' wallet UTXO(s), total ' + totalInput + ' sompi');
+
+    // ── 4. Build the transition tx ──
+    console.log('\n-- Building transition tx --');
+    // Input 0: covenant (computeBudget 60 — covenant input). Inputs 1..N: wallet (10).
+    const inputs = [{
+        txId: covUtxo.txId, index: covUtxo.index, amount: covUtxo.amount,
+        spk: contract.scriptPubKey.toString('hex'),
+        sequence: 0n, sigOpCount: 0, computeBudget: 60,
+    }].concat(selected.map(u => ({
+        txId: u.txId, index: u.index, amount: u.amount,
+        spk: p2pkSpk(pubKey).toString('hex'),
+        sequence: 0n, sigOpCount: 0, computeBudget: 10,
+    })));
+
+    // Output 0: continuation — SAME covenant ID, next state (the lineage).
+    // Output 1: wallet change (dust-guarded).
+    const carrierAmount = covUtxo.amount - CARRIER_FEE_PART;
+    const changeAmount = totalInput - WALLET_FEE;
+    const nextRedeem = contract.buildRedeem(nextState);
+    const outputs = [
+        { amount: carrierAmount, script: p2shSpk(nextRedeem).toString('hex') },
+    ];
+    if (changeAmount >= 100000000n) {
+        outputs.push({ amount: changeAmount, script: p2pkSpk(pubKey).toString('hex') });
+    }
+
+    const tx = buildTx(inputs, outputs);
+    console.log('Tx: ' + inputs.length + ' inputs, ' + outputs.length + ' outputs, fee ' + txFee(tx) + ' sompi');
+
+    // ── 5. Bind the continuation BEFORE signing ──
+    setContinuationCovenant(tx, 0, 0, record.covenantId);
+    console.log('Continuation bound to covenant ' + record.covenantId.slice(0, 16) + '...');
+
+    // ── 6. Sign ──
+    console.log('\n-- Signing --');
+    // ADAPT: entry name + args ('increment' takes only the auto-signed ownerSig)
+    signCovenantInput(tx, 0, privKey, contract.view, 'increment', [], contract.redeemScript);
+    for (let i = 1; i < inputs.length; i++) signP2PKInput(tx, i, privKey);
+    console.log('Signed ' + inputs.length + ' input(s)');
+
+    // ── 7. Broadcast via wRPC ──
+    console.log('\n-- Broadcasting --');
+    const wrpc = new KaspaWrpcProvider(net);
+    const result = await wrpc.broadcast(tx);
+    console.log('Broadcast: ' + result.txId);
+
+    // Crash-safety: persist the pointer BEFORE waiting. If this run dies,
+    // the next run resolves the pending tx instead of hunting a spent UTXO.
+    record.pending = { txId: result.txId, state: encodeState(nextState) };
+    saveRecord(record);
+
+    // ── 8. Confirm ──
+    console.log('\n-- Waiting for confirmation --');
+    const conf = await rest.waitForConfirmation(result.txId, { timeout: 120000 });
+    console.log('Confirmed: ' + conf.blockHash.slice(0, 20) + '...');
+
+    // ── 9. Adopt: the consensus-confirmed transition becomes the record ──
+    record.currentStateTx = result.txId;
+    record.state = encodeState(nextState);
+    record.transitions = (record.transitions || 0) + 1;
+    delete record.pending;
+    saveRecord(record);
+
+    // Belt: observe the continuation at the next-state address. Confirmation
+    // above is the truth; indexer lag here is cosmetic, not gating.
+    contract.setState(nextState);
+    const cont = (await contract.getUtxos()).find(u => u.txId === result.txId);
+    if (cont) {
+        console.log('\n✅ COVENANT INCREMENTED');
+        console.log('   ' + JSON.stringify(record.state) + '  (covenant ID unchanged — lineage preserved)');
+        console.log('   Tx: ' + result.txId);
+    } else {
+        console.log('\n✅ Confirmed on consensus; indexer has not caught up yet.');
+    }
+}
+
+main().catch(e => {
+    console.error('INTERACT FAILED: ' + e.message);
+    process.exit(1);
+});

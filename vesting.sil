@@ -1,0 +1,53 @@
+pragma silverscript ^0.1.0;
+
+contract VestingEscrow(
+    pubkey beneficiary,
+    pubkey owner,
+    temporal start_time,
+    temporal cliff_time,
+    temporal end_time,
+    int total_amount
+) {
+    int claimed_so_far = 0;
+
+    entry claim(int amount, temporal claim_time) {
+        require(tx.time >= claim_time);
+        require(claim_time >= cliff_time);
+
+        int elapsed = int(claim_time - start_time);
+        int period = int(end_time - start_time);
+        int vested = total_amount;
+        if (elapsed < period) {
+            vested = (total_amount * elapsed) / period;
+        }
+
+        int claimable = vested - claimed_so_far;
+        require(amount > 0);
+        require(amount <= claimable);
+
+        int remainder = tx.inputs[this.activeInputIndex].value - amount;
+
+        // [PIN spk-version-prefix] Use ScriptPubKeyP2PK constructor (byte[36])
+        require(tx.outputs[0].scriptPubKey == byte[](new ScriptPubKeyP2PK(beneficiary)));
+        require(tx.outputs[0].value == amount);
+
+        if (remainder > 0) {
+            require(OpAuthOutputCount(this.activeInputIndex) == 1);
+            require(OpAuthOutputIdx(this.activeInputIndex, 0) == 1);
+            require(tx.outputs[1].value == remainder);
+            validateOutputState(1, State{ claimed_so_far: claimed_so_far + amount });
+        } else {
+            require(OpAuthOutputCount(this.activeInputIndex) == 0);
+        }
+    }
+
+    entry reclaim(sig ownerSig) {
+        require(checkSig(ownerSig, owner));
+        require(tx.time >= end_time);
+
+        // [PIN spk-version-prefix] Use ScriptPubKeyP2PK constructor (byte[36])
+        require(tx.outputs[0].scriptPubKey == byte[](new ScriptPubKeyP2PK(owner)));
+        require(tx.outputs[0].value == tx.inputs[this.activeInputIndex].value);
+        require(OpAuthOutputCount(this.activeInputIndex) == 0);
+    }
+}
