@@ -63,7 +63,7 @@ the true dust floor is [TODO-verify] — guard stays until probed.
 4. Publish prep (#6): `files` whitelist REQUIRED (bin/ + bin/templates/
    must ship; strays must not — an empty file named 2^53 proved the
    stakes), LICENSE, README polish; noble already pinned ^1.x
-5. pubkeyFromPriv export (drops the scaffold's direct @noble require)
+5. Library polish: pubkeyFromPriv export (drops the scaffold's direct @noble require); wRPC env-var naming unification (const reads MAINNET_WRPC, provider reads PC_MAINNET_WRPC - const entry is dead code); optional: deploy template imports compile from index (exported) instead of the silly-compile deep path
 6. Medium-term intact: browser/isomorphic, pattern library, kascov
    fetchState, ledger abstraction
 

@@ -1,111 +1,123 @@
 # sillyscript
 
-Lightweight, pure-JS covenant companion to `silverc`.
+Lightweight, pure-JS covenant companion to `silverc`. An end-to-end
+SilverScript toolchain for Kaspa: compile `.sil` contracts, deploy
+covenants, drive state transitions, terminate them — from Termux.
 
-`sillyscript` provides an end-to-end client toolchain for SilverScript smart contracts on Kaspa: from `.json` compiler artifacts to state management, covenant continuation derivation, sighash computation, and transaction submission.
+**Status:** development toolkit, proven end-to-end on testnet-10 (two full
+lifecycles, on-chain, record-driven — citations in `platform-pins.md`
+§3.3b). Not yet published to npm: use the scaffold below, or
+`npm install /path/to/sillyscript`.
 
-- **Zero-WASM**: Pure JavaScript (`Buffer`, `BigInt`, `@noble/hashes`, `@noble/curves`). Runs seamlessly in Node.js, Termux, and browser environments.
-- **ABI-Driven**: Runtime derivation of 4-byte dispatch tags, template hashes, state spans, and columnar struct array layouts. Never hardcode tags or clone builders between versions.
-- **Fail-Closed**: Re-derives and validates every artifact's template hash and tags against its declared types at load time.
-- **High-Level Contract API**: Viem/Ethers-style `Contract` abstraction supporting named-argument mapping, automatic continuation derivation, and next-state address calculation.
-- **Pluggable Providers**: Decoupled transport layer with `KaspaRestProvider` for production and `MockProvider` for instant, offline, deterministic unit tests.
-- **TypeScript Typegen (`silly-typegen`)**: Generates strongly-typed `.d.ts` interfaces directly from compiler artifacts for IDE autocompletion and compile-time contract safety.
+**Compiler dependency:** `silverc` at revision `c7d17a1`. Artifact format
+and tag derivation are revision-sensitive (`platform-pins.md` §1.6) —
+recompile and re-verify canonical contracts on any upgrade.
+
+- **Zero-WASM**: pure JavaScript (`Buffer`, `BigInt`, `@noble/hashes`,
+  `@noble/curves`). Node.js and Termux are the proven environments.
+  Browser support is planned (isomorphic pass) — not claimed.
+- **ABI-driven**: dispatch tags, template hashes, state spans, and
+  columnar struct arrays are derived from the artifact at runtime.
+  Never hardcode tags or clone builders between versions.
+- **Fail-closed**: every artifact's template hash and dispatch tags are
+  re-derived and asserted at load time.
+- **High-level Contract API**: Viem/Ethers-style `Contract` with named
+  arguments, continuation derivation, and state-derived addresses.
+- **Pluggable providers**: `KaspaRestProvider` for live networks,
+  `MockProvider` for offline deterministic tests.
+- **The scaffold**: `silly init` generates a complete, proven covenant
+  lifecycle — deploy, interact (re-runnable), close — driven by a single
+  deployment record.
 
 ---
 
-## Quick Start
+## The Scaffold (start here)
 
-```bash
-npm install sillyscript
-```
+node bin/silly.js setup      # once: Rust + silverc from source (Termux)
+node bin/silly.js init foo   # scaffold: contract + lifecycle + .env
+cd foo && npm install
+# set PC_PRIV in .env, fund the printed address
+npm run deploy               # compile + genesis  -> data/deployment.json
+npm run interact             # advance state (re-runnable: record-driven)
+npm run close                # terminate, carrier returned to owner
 
-```javascript
+(Once published, `npx silly …` works — the `bin` field is registered.)
+
+The generated project is record-driven: `data/deployment.json` carries
+the covenant ID, the current state, and the current UTXO pointer
+(`currentStateTx`), plus a `pending` crash marker between broadcast and
+confirmation. No script hardcodes a txid, state, or UTXO array position —
+which is why `interact` re-runs without edits.
+
+Network notes (full detail in `platform-pins.md` §4):
+- Testnet covenant transactions REQUIRE wRPC broadcast — testnet REST
+  drops `compute_budget` ("script-units limit=9999"). The scaffold
+  broadcasts via wRPC on every network.
+- Mainnet wRPC has NO public default endpoint: set `PC_MAINNET_WRPC` in
+  `.env` before using `--mainnet`, or broadcast fails with
+  "all endpoints failed".
+
+---
+
+## Library Quick Start
+
 const { Contract, KaspaRestProvider, buildTx } = require('sillyscript');
 
-// 1. Connect to network via Provider
 const provider = new KaspaRestProvider('mainnet');
 const vesting = new Contract('./vesting.json', { provider });
 
-console.log('Contract Address:', vesting.address); // kaspa:pr...
-console.log('Initial State:', vesting.state);      // { claimed_so_far: 0n }
+console.log(vesting.address);  // state-derived P2SH address: kaspa:pr...
+console.log(vesting.state);    // { claimed_so_far: 0n }
 
-// 2. Prepare next state and preview continuation address
+// Next state and its address (state changes -> address changes)
 const nextState = { claimed_so_far: 500000000n };
 const nextAddress = vesting.nextAddress(nextState);
 
-// 3. Build sigScript (supports named or positional arguments)
+// Sigscript for an entry (named or positional arguments)
 const sigScript = vesting.buildSigScript('claim', {
-  amount: 500000000n,
-  claim_time: 1728000000000n,
+    amount: 500000000n,
+    claim_time: 1728000000000n,
 });
 
-// 4. Populate covenant input on transaction
-const tx = buildTx(inputs, outputs);
+// Populate a covenant input on a transaction
+const tx = buildTx(inputs, outputs);  // your inputs/outputs
 vesting.populateInput(tx, 0, {
-  entryName: 'claim',
-  args: { amount: 500000000n, claim_time: 1728000000000n },
+    entryName: 'claim',
+    args: { amount: 500000000n, claim_time: 1728000000000n },
 });
 
-// 5. Add continuation output with validated next state
-vesting.addContinuationOutput(tx, 1, 0, nextState, remainderAmount);
-```
+// Continuation output — covenantIdHex is REQUIRED (the lineage identity;
+// omitted, it throws)
+vesting.addContinuationOutput(tx, 1, 0, nextState, remainderAmount, covenantIdHex);
+
+For the full lifecycle without hand-assembly, use the scaffold above.
 
 ---
 
-## Pluggable Providers
+## Providers
 
-`sillyscript` completely decouples contract logic from the network transport:
+`Contract` logic is decoupled from transport:
 
-### 1. `KaspaRestProvider` (Default for Live Networks)
-Connect to mainnet, testnet-10, or a custom node REST gateway:
-```javascript
-const { KaspaRestProvider } = require('sillyscript');
+const { KaspaRestProvider, MockProvider } = require('sillyscript');
 
 const mainnet = new KaspaRestProvider('mainnet');
 const testnet = new KaspaRestProvider('testnet');
-const privateNode = new KaspaRestProvider('https://kaspad.internal:8080');
-```
+const custom  = new KaspaRestProvider('https://kaspad.internal:8080');
 
-### 2. `MockProvider` (Offline Unit Testing)
-Test contracts, UTXO spending, and multi-step state transitions in-memory with zero network calls:
-```javascript
-const { Contract, MockProvider } = require('sillyscript');
-
-const mock = new MockProvider('mainnet');
-const contract = new Contract('./vesting.json', { provider: mock });
-
-// Seed mock wallet balance
-mock.addUtxo(contract.address, {
-  txId: '00'.repeat(32),
-  index: 0,
-  amount: 1000000000n, // 10 KAS
-});
-
-const utxos = await contract.getUtxos();
-console.log('Mock UTXOs:', utxos);
-```
+`MockProvider` runs contracts, UTXO spends, and multi-step transitions
+in-memory with zero network calls — see its usage in the test suite.
 
 ---
 
-## TypeScript Type Generation (`silly-typegen`)
+## CLI
 
-Generate strict TypeScript type declarations from any `silverc` artifact:
-
-```bash
+node bin/silly.js setup    # Termux: install Rust, compile silverc
+node bin/silly.js init foo # scaffold a covenant project
+node bin/silly.js check    # toolchain + template verification gate
 npx silly-typegen ./vesting.json --out ./vesting.d.ts
-```
 
-Generates:
-- **`VestingEscrowState`**: Typed runtime state fields (with `bigint` for integers and timestamps).
-- **`VestingEscrow<Entry>Args`**: Strongly-typed argument interfaces for each entrypoint.
-- **`VestingEscrow<Entry>Tuple`**: Positional tuple signatures for entry invocations.
-- **`VestingEscrowContract`**: Type-safe contract class wrapper.
-
-Programmatic usage:
-```javascript
-const { generateTypes } = require('sillyscript');
-const dts = generateTypes('./vesting.json');
-```
+`silly check` syntax-checks every scaffold template — generated projects
+parse before you ever run them.
 
 ---
 
@@ -113,20 +125,28 @@ const dts = generateTypes('./vesting.json');
 
 | Module | Purpose |
 |---|---|
-| `contract.js` | High-level `Contract` abstraction: state decoding, next-state derivation, input population |
-| `provider.js` | Decoupled transport layer: `Provider`, `KaspaRestProvider`, and `MockProvider` |
-| `silly-typegen.js` | CLI & programmatic generator for TypeScript contract declarations |
-| `sil-abi.js` | SilverScript ABI artifact loader, template hash verification, tag derivation, state span decoder |
-| `sil-encoder.js` | Push-level encoder: minimal pushes for args, explicit pushes for state, columnar struct arrays |
-| `kaspa-crypto.js` | Kaspa CashAddr-variant Bech32 addresses, KIP-20 covenant IDs, P2SH (`aa20...87`) / P2PK formats |
-| `kaspa-sighash.js` | Kaspa v1 sighash engine (16-field preimage + covenant binding commitments) |
-| `kaspa-tx.js` | Tx assembly, computeBudget assignment, Schnorr signing, mass/fee estimation |
+| `index.js` | Package root — the full export surface |
+| `contract.js` | High-level `Contract` abstraction |
+| `provider.js` | `Provider`, `KaspaRestProvider`, `MockProvider` |
+| `silly-compile.js` | silverc invocation + fail-closed artifact verification |
+| `silly-typegen.js` | TypeScript declaration generator (CLI + programmatic) |
+| `sil-abi.js` | Artifact loader, tag verifier, state decoder |
+| `sil-encoder.js` | Push-level encoder: args, state, columnar struct arrays |
+| `kaspa-crypto.js` | Bech32 (CashAddr variant), covenant ID, P2SH/P2PK formats |
+| `kaspa-sighash.js` | v1 sighash engine with covenant binding commitments |
+| `kaspa-tx.js` | Tx assembly, auto computeBudget (10/60), signing, mass/fee |
+| `kaspa-wrpc.js` | wRPC broadcast, endpoint rotation, BigInt serialization |
+| `bin/silly.js` | CLI: setup / init / check |
+| `bin/templates/` | Scaffold source: lib / deploy / interact / close |
+
+(Test counts are owned by `Files-Manifest.md` — the single count owner.)
 
 ---
 
-## Running Tests
+## Tests & Docs
 
-```bash
-npm test
-```
-Runs the full self-test suite across encoder, provider, type generation, crypto, sighash, transaction building, and contract abstraction.
+npm test   # 9 self-test modules; expect nine "ALL n PASS" lines
+
+The repo ships its own operating canon: `SilverBible.md` (model,
+language, patterns), `platform-pins.md` (graded, evidenced facts),
+`SAFETY.md` (mainnet-first rails), `HANDOFF.md` (current state).

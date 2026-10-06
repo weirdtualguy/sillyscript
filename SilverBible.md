@@ -130,7 +130,7 @@ output-index distinctness guard in both directions in one session.
 Deferred negative tests rot: the v4 mint-conservation negative was deferred
 and became the project's only audit gap. Same-day or never.
 
-The kit inherits this: `sil-abi.js` refusing to load struct-bearing artifacts
+The library inherits this: `sil-abi.js` refusing to load struct-bearing artifacts
 (before the `{fields}` fix) was itself diagnostic evidence.
 
 ### 0.8 The fact lifecycle
@@ -455,7 +455,7 @@ blocks, causing "sequence locks conditions was not met" rejections.
 [CRITICAL] JavaScript Number cannot represent 2^63 — it rounds to
 9223372036854776000 (off by 192), causing silent signature verification
 failure ("false stack entry"). Store sequence as BigInt; serialize with
-the kit's `serializeBigInt` (kaspa-wrpc.js); use `SEQUENCE_DISABLE`
+the library's `serializeBigInt` (kaspa-wrpc.js); use `SEQUENCE_DISABLE`
 exported constant.
 
 ### 2.5 Builtins
@@ -620,7 +620,7 @@ This is the KCC20Minter `init` shape: the minter's next state records the
 covenant ID of output 0 — proving it bound itself to exactly the asset
 created beside it. Without this, the same tx wouldn't prove the binding.
 
-Genesis cov-ID computation itself is the BUILDER's job (kit:
+Genesis cov-ID computation itself is the BUILDER's job (library:
 `setGenesisCovenant`) — the preimage is in pins §3.2.
 
 ### 3.7 The boundary that decides DECL vs handwritten
@@ -1276,7 +1276,7 @@ layer. Classify which layer each proof exercised.
 6. New incidents enter pins §6 with root cause + law; if the law is
    behavioral (how an agent must act), it also enters §0.
 7. Append-only history lives in git; the canon stays curated. Splitting
-   docs by function (Bible/pins/kit) replaces splitting by time.
+   docs by function (Bible/pins/library) replaces splitting by time.
 
 ## Appendix B — Glossary (pinned vocabulary, rule 0.9)
 
@@ -1323,7 +1323,7 @@ e1f2f6a8... (bricked close - pins 3.3b corollary).
   prevented the ABI/codec/crypto classes of failure entirely — zero
   incidents in those layers. The failures that did occur (wRPC schema,
   sequence mechanics, UTXO parsing) were in layers the docs didn't cover
-  — all now pinned (pins §10) and kit-fixed.
+  — all now pinned (pins §10) and kit-fixed (kit-era fixes, since ported).
 - Rule 0.3 was violated for 15 rounds before being followed for 1 — the
   reinforcement is now embedded in §0.3 itself. Rules work; the challenge
   is trigger recognition, which the gauntlet data now sharpens.

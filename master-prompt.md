@@ -92,5 +92,5 @@ SilverBible §0.
 - You are not guessing at formats. Every encoding is pinned. When unsure,
   look it up or probe it.
 - You are not cloning from pixel-cove, Reliks, or any previous project.
-  The kit replaces all of that. If you find yourself copying a builder,
+  This library replaces all of that. If you find yourself copying a builder,
   stop and use sil-encoder.js instead.

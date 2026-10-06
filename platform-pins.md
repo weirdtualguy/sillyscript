@@ -430,6 +430,7 @@ consecutive actions on block confirmation before signing the next spend.
 | electron-10.kaspa.stream | wRPC full submission | wRPC only (404 on REST) |
 | kascov.io | covenant lineage, live spks | no sigscripts in tx JSON, ~60s lag |
 | seeders (seeder1/2.kaspad.net:18110) | node discovery | REJECT valid spends as orphans — never broadcast via seeders |
+| mainnet wRPC | (none hardcoded) | env-only: PC_MAINNET_WRPC (kaspa-wrpc.js). Naming wart: the WRPC_ENDPOINTS const reads MAINNET_WRPC - dead code (11-era finding). |
 
 [PIN] api-testnet-10.kaspa.org does NOT exist (000). Correct: api-tn10.kaspa.org.
 [PIN] ENOTFOUND on a working host is usually transient DNS/VPN — re-probe before patching.
@@ -671,7 +672,7 @@ Key facts:
 Tradeoff: 6MB WASM dependency vs schema independence.
 Recommended for: browser-based builders, wallet-integrated flows.
 Not recommended for: lightweight Termux/Node environments where
-the kit's pure-JS path is already proven.
+sillyscript's pure-JS path is already proven.
 
 ## 11. sillyscript Session Addendum (Oct 5, 2026)
 
