@@ -240,6 +240,13 @@ Evidence: computed from mainnet REST data, matched on-chain covenant_id for
 genesis f6ebb717... -> lane 63fccd99...
 Probe: probes/validate-mainnet.js
 
+[REF argent PR#66, Oct 2026 - text-level]: argent-genesis computes the same
+preimage by calling Kaspa consensus covenant_id directly (preimage.rs) -
+external corroboration of this port. Its sil proof layer is the same
+composition sillyscript already owns (loadArtifact + state encode + redeem
++ p2shSpk + covenant ID): a JS genesis-verify port is composition, not new
+verification logic. Execution cross-check pending an argentc Termux build.
+
 ### 3.3 Script public key formats [PIN mainnet REST]
 
 | Type | Bytes | Format |

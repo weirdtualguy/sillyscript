@@ -69,7 +69,9 @@ the true dust floor is [TODO-verify] — guard stays until probed.
    bin/templates/ must ship; strays must not), LICENSE (absent,
    confirmed Oct 5); README is publish-grade; noble pinned ^1.x
 5. Medium-term intact: browser/isomorphic pass, pattern library,
-   kascov fetchState, ledger abstraction
+   kascov fetchState, ledger abstraction, genesis-proof port
+   (argent PR#66 sil layer - composable from primitives sillyscript already
+   owns; corroboration note in pins 3.2; cross-probe once argentc builds)
 
 Completed this session - do not reopen without new evidence:
 roadmap #1-#4. Scaffold lifecycle twice-proven on testnet-10;
