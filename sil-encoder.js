@@ -222,7 +222,7 @@ function coerceArg(type, value, context, resolveStruct) {
 function encodeFixedPayload(type, value, context) {
   switch (type.kind) {
     case 'int': case 'temporal':
-      return serializeScriptNumFixed8(value);
+      return serializeScriptNumFixed8(asBigInt(value, context));
     case 'bool':
       return Buffer.from([value ? 1 : 0]);
     case 'byte':
@@ -563,6 +563,16 @@ if (require.main === module && process.argv.includes('--test')) {
     t('int 0 → OP_0', hex(buf.build()), '00');
   }
 
+
+// State ints accept integer Numbers — the JSON CLI path (pins 11/S9).
+// The sigscript arg path coerces via asBigInt; the state path must too.
+{
+    const mini = { fields: [{ name: 'count', type: { kind: 'int' } }] };
+    let ok = false;
+    try { ok = encodeState(mini, { count: 0 }).equals(encodeState(mini, { count: 0n })); }
+    catch (e) { ok = false; }
+    t('state int accepts Number (JSON CLI path)', ok, true);
+}
   console.log(fail ? `\n${fail} FAILURE(S)` : `\nALL ${pass} PASS`);
   process.exit(fail ? 1 : 0);
 }

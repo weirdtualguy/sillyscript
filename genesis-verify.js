@@ -490,6 +490,21 @@ if (require.main === module && process.argv.includes('--test')) {
                 code === 1 && out.includes('[!]') && out.includes('sillyscript') === false,
                 'exit=' + code + ' out=' + out.slice(0, 80));
         }
+
+        // CLI state contract (handoff: --initial-state {count:0} arrives as JSON
+        // Numbers). The state layer must accept integer Numbers and match the
+        // baked genesis state (pins 11/S9 regression).
+        {
+            const mock = new MockProvider('testnet');
+            mock.transactions.set(v.txid, restTx);
+            const r = await verifyGenesis({
+                artifactPath: vesting, initialState: { claimed_so_far: 0 },
+                covenantIdHex: v.onChainId, genesisTxId: v.txid, provider: mock,
+            });
+            t('JSON-Number initial state passes state layer (CLI contract)',
+                r.stateCheck !== null && r.stateCheck.ok === true,
+                r.stateCheck ? r.stateCheck.reason : 'no stateCheck');
+        }
         console.log(fail ? `\n${fail} FAILURE(S)` : `\nALL ${pass} PASS`);
         process.exit(fail ? 1 : 0);
     })().catch(e => { console.error('TEST ERROR:', e.message); process.exit(1); });
