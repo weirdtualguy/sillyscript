@@ -18,6 +18,7 @@ terminate — zero WASM, zero prebuilt binaries, Termux-first.
   is count-free by design
 - master-prompt.md — boot sector, repointed at this repo
 - Do not read, cite, or cd into ~/kaspa-platform-kit
+- README.md / SAFETY.md - rewritten Oct 5, audit-fresh (honest status; enforced-vs-aspirational limits)
 
 ## First commands
     cd ~/sillyscript
@@ -55,17 +56,27 @@ the true dust floor is [TODO-verify] — guard stays until probed.
 
 ## Open board (priority order)
 1. Dust-floor probe: one designed testnet tx with a small output
-2. Docs audit (#4): README (module table, CLI, silverc-rev, browser
-   claim), SAFETY enforced-vs-aspirational (MAX_FEE now enforced at
-   scaffold level only), Bible §8 P0 genesis-bridge entry citing the
-   scaffold; silly-compile output newline (cosmetic)
-3. Polish findings #3, #10–#14 (library code)
-4. Publish prep (#6): `files` whitelist REQUIRED (bin/ + bin/templates/
-   must ship; strays must not — an empty file named 2^53 proved the
-   stakes), LICENSE, README polish; noble already pinned ^1.x
-5. Library polish: pubkeyFromPriv export (drops the scaffold's direct @noble require); wRPC env-var naming unification (const reads MAINNET_WRPC, provider reads PC_MAINNET_WRPC - const entry is dead code); optional: deploy template imports compile from index (exported) instead of the silly-compile deep path
-6. Medium-term intact: browser/isomorphic, pattern library, kascov
-   fetchState, ledger abstraction
+   ([TODO-verify]; the 100M change guard stays until probed)
+2. Polish findings #3, #10-#14 (library code; #11 typegen bypass,
+   #13 tx:any, #14 tag literals in .d.ts are the sharp ones)
+3. Library polish: pubkeyFromPriv export (drops the scaffold's direct
+   @noble require); wRPC env-var naming unification (WRPC_ENDPOINTS
+   const reads MAINNET_WRPC, provider reads PC_MAINNET_WRPC - const
+   entry is dead code); deploy template could import compile from
+   index (exported) instead of the silly-compile deep path;
+   silly-compile print newline (cosmetic)
+4. Publish prep (#6): `files` whitelist REQUIRED (bin/ and
+   bin/templates/ must ship; strays must not), LICENSE (absent,
+   confirmed Oct 5); README is publish-grade; noble pinned ^1.x
+5. Medium-term intact: browser/isomorphic pass, pattern library,
+   kascov fetchState, ledger abstraction
+
+Completed this session - do not reopen without new evidence:
+roadmap #1-#4. Scaffold lifecycle twice-proven on testnet-10;
+spk-version-prefix pin (3.3b + bricking corollary + stranded
+Counter monument); platform pins updated; docs audit done -
+README/SAFETY rewritten, P0 added to Bible 8, canon self-consistent
+(one count owner, count-free gates).
 
 ## Environment
 Termux/Android arm64, Node v26.3.1, silverc @ c7d17a1 (~/bin/silverc),
