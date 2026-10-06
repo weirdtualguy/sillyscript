@@ -10,8 +10,10 @@ const { generateTypes, toTsType } = require('./silly-typegen');
 const { compile, findSilverc } = require('./silly-compile');
 const { Provider, KaspaRestProvider, MockProvider, NETWORKS } = require('./provider');
 const { KaspaWrpcProvider, toWrpcFormat } = require('./kaspa-wrpc');
+const { verifyGenesis } = require('./genesis-verify');
 
 module.exports = {
+  verifyGenesis,
   // High-level contract abstraction (Viem/Ethers-style)
   Contract,
 

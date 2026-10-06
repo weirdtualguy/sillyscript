@@ -271,6 +271,78 @@ contract Counter(pubkey owner) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// genesis verify: verify a source/artifact matches an on-chain covenant
+// ─────────────────────────────────────────────────────────────────────────────
+
+if (command === 'genesis') {
+    const sub = process.argv[3];
+    if (sub !== 'verify') {
+        console.error('Usage: silly genesis verify <source.sil | artifact.json>');
+        console.error('         --covenant-id <id>      covenant ID (from chain/explorer)');
+        console.error('         --genesis-txid <txid>   the creating transaction');
+        console.error('       [ --network testnet|mainnet | --mainnet ]');
+        console.error('       [ --initial-state <json>   e.g. {"count":0} ]');
+        console.error('       [ --constructor-args <json-array>  source path only ]');
+        process.exit(1);
+    }
+    const target = process.argv[4];
+    if (typeof target !== 'string' || target.startsWith('--')) {
+        console.error('Usage: silly genesis verify <source.sil | artifact.json> --covenant-id <id> --genesis-txid <txid>');
+        process.exit(1);
+    }
+    const flags = {};
+    for (let i = 5; i < process.argv.length; i++) {
+        const a = process.argv[i];
+        if (a.startsWith('--')) {
+            const next = process.argv[i + 1];
+            if (next === undefined || next.startsWith('--')) { flags[a.slice(2)] = true; }
+            else { flags[a.slice(2)] = next; i++; }
+        }
+    }
+    const need = (name) => {
+        const val = flags[name];
+        if (typeof val !== 'string' || val.length === 0) {
+            console.error('[!] Missing required flag: --' + name);
+            process.exit(1);
+        }
+        return val;
+    };
+    const jsonFlag = (name) => {
+        const val = flags[name];
+        if (val === undefined || val === true) return undefined;
+        try { return JSON.parse(val); }
+        catch (e) { console.error('[!] --' + name + ' is not valid JSON: ' + e.message); process.exit(1); }
+    };
+
+    const isSource = target.endsWith('.sil');
+    const network = flags.mainnet === true ? 'mainnet'
+        : (typeof flags.network === 'string' ? flags.network : 'testnet');
+    const args = {
+        genesisTxId: need('genesis-txid'),
+        covenantIdHex: need('covenant-id'),
+        network,
+        initialState: jsonFlag('initial-state'),
+    };
+    if (isSource) {
+        args.sourcePath = target;
+        args.constructorArgs = jsonFlag('constructor-args') || [];
+    } else {
+        args.artifactPath = target;
+    }
+
+    const { verifyGenesis } = require(path.join(__dirname, '..', 'genesis-verify.js'));
+    verifyGenesis(args).then(r => {
+        console.log(r.message);
+        console.log('');
+        if (r.verified === false) console.log('   (exit 1 — ' + r.layer + ' layer failed)');
+        process.exit(r.verified ? 0 : 1);
+    }).catch(e => {
+        console.error('[!] ' + e.message);
+        process.exit(1);
+    });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Help
 // ─────────────────────────────────────────────────────────────────────────────
 

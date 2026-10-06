@@ -27,6 +27,7 @@ they do.
 ├── kaspa-sighash.js               SIGHASH 4: v1 signing hash (covenant commitments)
 ├── kaspa-tx.js                    TX 5: tx builder, computeBudget assignment, mass/fee
 ├── kaspa-wrpc.js                  NETWORK 6: wRPC broadcast, endpoint rotation, gauntlet-B4
+├── genesis-verify.js           GENESIS VERIFY: source/artifact vs on-chain covenant
 │
 ├── vesting.sil                    REFERENCE CONTRACT: vesting escrow source
 ├── vesting.json                   REFERENCE ARTIFACT: compiled JSON
@@ -44,13 +45,15 @@ they do.
     ├── verify-tags.js             dispatch-tag + template-hash conformance sweep
     ├── validate-mainnet.js        covenant ID vs mainnet genesis
     ├── verify-schnorr-fixed.js    sighash + schnorr vs live mainnet genesis
-    └── gauntlet-v13.js            full vertical integration vs v13 artifact
+    ├── gauntlet-v13.js            full vertical integration vs v13 artifact
+└── resolve-authindex.js     authIndex semantics vs chain truth (pins 3.2)
 
 
 ## Modules — The Executable Layer
 
 | File | Tests | What it does |
 |---|---|---|
+| `genesis-verify.js` | 19 | Genesis verification: source/artifact vs on-chain covenant — state/script/consensus layers, chain-read covenant_id as the verdict source (17 core + 2 chain-anchored Counter positives, active when counter-abi.json is present). |
 | `index.js` | — | Unified package entrypoint: Contract, Provider, generateTypes, primitives. |
 | `contract.js` | 18 | High-level Contract: state reflection, arg normalization, next-state derivation, input population, continuation binding. |
 | `provider.js` | 16 | Abstract Provider, KaspaRestProvider (mainnet/testnet), MockProvider with UTXO tracking and block simulation. |
@@ -63,7 +66,7 @@ they do.
 | `kaspa-tx.js` | 29 | Tx assembly (auto computeBudget 10/60), P2PK and covenant signing, mass/fee estimation. |
 | `kaspa-wrpc.js` | 26 | wRPC broadcast: gauntlet-B4 schema, BigInt serialization, rotation on error and rejection. |
 
-**Total: 177 tests across 9 self-test modules** — `npm test` prints nine
+**Total: 196 tests across 10 self-test modules** — `npm test` prints ten
 `ALL n PASS` lines; their sum is the contract.
 
 ## The Scaffold — `silly init <name>`
@@ -83,6 +86,7 @@ probe.
 
 | File | What it verifies |
 |---|---|
+| `probes/resolve-authindex.js` | Settles the covenant-ID authIndex semantics (previous-outpoint index, not input position) against chain truth; dumps the testnet-10 retrieval schema. |
 | `probes/verify-tags.js` | Derives every entry's dispatch tag from artifact params; verifies template hashes. |
 | `probes/validate-mainnet.js` | Fetches mainnet genesis via REST, computes the covenant ID, checks it against the chain. |
 | `probes/verify-schnorr-fixed.js` | Reconstructs the sighash from mainnet genesis data, verifies the schnorr signature. |

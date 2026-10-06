@@ -231,7 +231,12 @@ A 144-variant brute force of standard combos FAILS. Do not guess; use kaspa-cryp
 
     covenant_id = keyed_blake2b(key='CovenantID', 32B out) over:
         authTxid[32B]         <- REST txid hex-decoded AS-IS (no reversal)
-      + u32le(authIndex)      <- authorizing input's index
+  + u32le(authIndex)   <- authorizing input's PREVIOUS OUTPOINT index [PIN 2026-10-07,
+     DISCRIMINATING testnet-10 vectors bd4085b1…→b324dc5b… and 60579a71…→230551a6…
+     (authInputPos=0, prevOutpointIndex=2); probe probes/resolve-authindex.js;
+     code-corroborated by setGenesisCovenant + validate-mainnet.js] NOT the
+     input's POSITION — the position is the binding field covenant_authorizing_input
+     (4.1), which only LOCATES the input in tx.inputs.
       + u64le(outputCount)
       + per-output: u32le(outIdx) + u64le(value) + u16le(scriptVersion=0)
                      + u64le(scriptLen) + script bytes (aa20.. format, no version prefix)
@@ -391,6 +396,15 @@ script_public_key_address, script_public_key_type, covenant_authorizing_input,
 covenant_id, previous_outpoint_hash, previous_outpoint_index (STRING — parseInt it),
 signature_script, sig_op_count (STRING), compute_budget.
 
+Testnet-10 retrieval addendum [PIN 2026-10-07, probes/resolve-authindex.js,
+bd4085b1… / 60579a71…]:
+- covenant_authorizing_input IS present per output, as a JSON NUMBER (as mainnet).
+  An earlier session claim that testnet lacks it was a probe .map() bug, corrected.
+- per-INPUT covenant_id field (null on non-covenant funding spends).
+- amount is a JSON NUMBER on testnet retrieval (mainnet pins it STRING) —
+  parse with BigInt(), which handles both. Output index NUMBER;
+  previous_outpoint_index STRING — parseInt()/BigInt() defensively.
+
 [PIN] Mainnet REST flattens covenant data into covenant_authorizing_input /
 covenant_id per output — no nested covenant object in retrieval.
 
@@ -504,6 +518,7 @@ section retains only what pins uniquely holds: the probe layer.
 | validate-mainnet.js | covenant ID vs mainnet genesis |
 | verify-schnorr-fixed.js | sighash + schnorr vs mainnet |
 | gauntlet-v13.js | full vertical vs live v13 artifact |
+| resolve-authindex.js | authIndex semantics (3.2) + testnet retrieval schema |
 
 ---
 

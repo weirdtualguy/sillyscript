@@ -9,7 +9,7 @@
     "silly": "./bin/silly.js"
   },
   "scripts": {
-    "test": "node sil-encoder.js --test && node kaspa-wrpc.js --test && node provider.js --test && node silly-compile.js --test && node silly-typegen.js --test && node kaspa-crypto.js --test && node kaspa-sighash.js --test && node kaspa-tx.js --test && node contract.js --test"
+    "test": "node sil-encoder.js --test && node kaspa-wrpc.js --test && node provider.js --test && node silly-compile.js --test && node silly-typegen.js --test && node kaspa-crypto.js --test && node kaspa-sighash.js --test && node kaspa-tx.js --test && node contract.js --test && node genesis-verify.js --test"
   },
   "keywords": [
     "kaspa",
