@@ -466,7 +466,7 @@ Broken on Termux. Use pure-JS: @noble/hashes, @noble/curves, fetch, ws.
 
 ---
 
-## 6. Incident Registry (this session)
+## 6. Incident Registry (kit-era session - historical; current registry: 11)
 
 | # | Incident | Root cause | Law |
 |---|---|---|---|
@@ -485,16 +485,11 @@ Broken on Termux. Use pure-JS: @noble/hashes, @noble/curves, fetch, ws.
 
 ---
 
-## 7. Kit Modules & Probes
+## 7. Library Modules & Probes
 
-| Module | Purpose | Validation |
-|---|---|---|
-| sil-abi.js | artifact loader, tag verifier, state decoder | 24/24 tags, 6/6 hashes, state decode |
-| sil-encoder.js | sigscript/state/redeem builder | 35/35 + 15,702B round-trip |
-| kaspa-crypto.js | bech32, covenant ID, spk formats | 19/19 + mainnet covenant ID |
-| kaspa-sighash.js | v1 signing hash | 4/4 + mainnet schnorr verify |
-| kaspa-tx.js | tx builder, signer, submitter | 25/25 + sign-verify round-trip |
-
+Module purposes, per-module test counts, and the file inventory are
+owned by Files-Manifest.md - the single count owner (11/S6). This
+section retains only what pins uniquely holds: the probe layer.
 | Probe | Verifies |
 |---|---|
 | verify-tags.js | dispatch tags + template hashes across artifacts |

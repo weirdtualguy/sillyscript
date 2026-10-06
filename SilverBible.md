@@ -831,6 +831,49 @@ v1–v13 `.sil` corpus, KCC20/KCC20Minter, OfferEscrow.
 its skeleton mentally, then diff your requirements against its pitfalls
 list. The catalog is a checklist engine, not a code library.
 
+### P0 - Genesis Bridge (wallet -> live covenant)
+
+**Problem:** every pattern below assumes the covenant already exists.
+This is the pattern that gets you there: deploy, advance, terminate -
+with the transaction surgery owned by one record-driven toolchain,
+not hand-built per spend.
+
+**Shape:** the sillyscript scaffold (`silly init`): deploy.js /
+interact.js / close.js over a shared lib.js, all driven by
+data/deployment.json - the pointer chain. `txId` = birth certificate
+(immutable); `currentStateTx` = live location (mutable - the dual-field
+lineage discipline of 9.2, miniaturized); `pending` = crash marker
+between broadcast and confirmation; `state` = current state (BigInts
+as "1n" strings).
+
+**Choreography:**
+- deploy: compile (constructor args baked) -> pickUtxosSafe -> buildTx
+  -> setGenesisCovenant AFTER build, BEFORE any signature -> wRPC
+  broadcast -> write record with pending -> confirm -> adopt.
+- interact: resolvePending -> find the covenant UTXO by creator txid
+  AT THE CURRENT-STATE ADDRESS (setState first - addresses are
+  state-derived) -> continuation output with the SAME covenant ID (the
+  lineage) -> bind -> sign -> pending -> confirm -> adopt state.
+- close: same, minus continuation; output 0 carries the FULL covenant
+  input value to the owner P2PK; OpAuthOutputCount == 0 ends the
+  lineage.
+
+**Pitfalls (each session-proven, pins 11):**
+- Bind-before-sign is load-bearing - covenant bindings live inside
+  the sighash outputs hash; binding after signing silently invalidates
+  every signature.
+- A close entry comparing tx.outputs[0].scriptPubKey against concatenated
+  bytes is bricked AT GENESIS (pins 3.3b corollary) - see the stranded
+  Counter monument.
+- Fee selection targets are not paid fees: txFee(tx) = inputs minus
+  outputs is the only truth (11/S5). A change guard equal to the
+  wallet UTXO size silently burns every change output (11/S7).
+- Re-runnability is a design property: the current UTXO comes from the
+  record, never a hardcoded txid or array position.
+
+**Proofs:** two complete lifecycles on testnet-10, record-driven, zero
+hand-edits - including an UNMODIFIED interact re-run (1->2) and close
+from elevated state (count=2n). Txid citations: pins 3.3b.
 ### P1 — Singleton State Machine
 
 **Problem:** one UTXO carries state that advances one step per spend
@@ -1261,6 +1304,10 @@ state). KCC20 + PixelToken/PixelMinter + OfferEscrow v1–v6 as composition
 proofs. Mainnet: genesis f6ebb717…, lane 63fccd99… (open monument),
 edition 23b4157d…, serial 1643293157957497133.
 
+sillyscript scaffold era (Oct 5): two closed lifecycles on
+testnet-10 (citations pins 3.3b) + the stranded Counter monument
+e1f2f6a8... (bricked close - pins 3.3b corollary).
+
 ## Appendix D — Self-assessment (Bible graded by its own §0)
 
 - §0 rules each trace to registry incidents or burned rounds ✓ (0.4 —
@@ -1281,11 +1328,12 @@ edition 23b4157d…, serial 1643293157957497133.
   reinforcement is now embedded in §0.3 itself. Rules work; the challenge
   is trigger recognition, which the gauntlet data now sharpens.
 
-Known gaps: DECL lowering internals summarized from one compiler era —
-re-diff on upgrade; §1.4 composite-sizing quantified on two contract
-families (v11, v13); §8 missing the P0 genesis-bridge mini-pattern the
-gauntlet needed; §9.1 stage gates predate the graduated mainnet-first
-strategy (see SAFETY.md).
+Known gaps: DECL lowering internals summarized from one compiler era -
+re-diff on upgrade; 1.4 composite-sizing quantified on two contract
+families (v11, v13); 9.1 stage gates predate the graduated mainnet-first
+strategy (see SAFETY.md). Closed Oct 5: the P0 genesis-bridge gap (P0
+now in 8, twice lifecycle-proven via the scaffold); verification gates
+are count-free with Files-Manifest.md owning all counts.
 
 **Status: partially verified.** The core vertical claim is proven; the
 completeness claim is tested and known-imperfect — patched for the

@@ -5,6 +5,7 @@ it turns a general AI session into a SilverScript covenant developer.
 
 ## Load order (before answering anything technical)
 
+0. ~/sillyscript/HANDOFF.md - current project state + open board (read first)
 1. ~/sillyscript/SilverBible.md — canon: model, language, patterns, workflow
 2. ~/sillyscript/platform-pins.md — verified facts: compiler, codec, crypto, network
 3. ~/sillyscript/ — the library: verified modules, executable verification (npm test)
