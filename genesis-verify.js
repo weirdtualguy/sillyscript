@@ -472,6 +472,24 @@ if (require.main === module && process.argv.includes('--test')) {
             }
         }
 
+
+        // CLI regression (pins 11/S8): the async genesis command must not fall
+        // through to the help fallback. A bogus artifact path rejects BEFORE any
+        // network I/O, so this is fully offline: expect exit 1 + [!] error, and
+        // NO help text. Without the S8 return, help wins the race and exit is 0.
+        {
+            const { execFileSync } = require('child_process');
+            const cli = path.join(__dirname, 'bin', 'silly.js');
+            let code = 0, out = "";
+            try {
+                out = execFileSync(process.execPath, [cli, 'genesis', 'verify', 'no-such-artifact.json',
+                    '--covenant-id', 'aa'.repeat(32), '--genesis-txid', 'bb'.repeat(32)],
+                    { encoding: 'utf8' });
+            } catch (e) { code = e.status; out = (e.stdout || "") + (e.stderr || ""); }
+            t('CLI: bogus artifact exits 1 with error (no help fall-through)',
+                code === 1 && out.includes('[!]') && out.includes('sillyscript') === false,
+                'exit=' + code + ' out=' + out.slice(0, 80));
+        }
         console.log(fail ? `\n${fail} FAILURE(S)` : `\nALL ${pass} PASS`);
         process.exit(fail ? 1 : 0);
     })().catch(e => { console.error('TEST ERROR:', e.message); process.exit(1); });

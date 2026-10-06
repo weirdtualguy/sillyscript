@@ -53,7 +53,7 @@ they do.
 
 | File | Tests | What it does |
 |---|---|---|
-| `genesis-verify.js` | 19 | Genesis verification: source/artifact vs on-chain covenant — state/script/consensus layers, chain-read covenant_id as the verdict source (17 core + 2 chain-anchored Counter positives, active when counter-abi.json is present). |
+| `genesis-verify.js` | 20 | Genesis verification: source/artifact vs on-chain covenant — state/script/consensus layers, chain-read covenant_id as the verdict source (18 core + 2 chain-anchored Counter positives, active when counter-abi.json is present). |
 | `index.js` | — | Unified package entrypoint: Contract, Provider, generateTypes, primitives. |
 | `contract.js` | 18 | High-level Contract: state reflection, arg normalization, next-state derivation, input population, continuation binding. |
 | `provider.js` | 16 | Abstract Provider, KaspaRestProvider (mainnet/testnet), MockProvider with UTXO tracking and block simulation. |
@@ -66,7 +66,7 @@ they do.
 | `kaspa-tx.js` | 29 | Tx assembly (auto computeBudget 10/60), P2PK and covenant signing, mass/fee estimation. |
 | `kaspa-wrpc.js` | 26 | wRPC broadcast: gauntlet-B4 schema, BigInt serialization, rotation on error and rejection. |
 
-**Total: 196 tests across 10 self-test modules** — `npm test` prints ten
+**Total: 197 tests across 10 self-test modules** — `npm test` prints ten
 `ALL n PASS` lines; their sum is the contract.
 
 ## The Scaffold — `silly init <name>`

@@ -707,6 +707,7 @@ sillyscript's pure-JS path is already proven.
 | S5 | Fee labels conflated selection target with paid fee (3.1M/5M circulated as proven; actuals ~100M) | intended-fee constants graded as proven; nothing compared txFee(tx) to intent | a proven fee is inputs-minus-outputs of a CONFIRMED tx, not a selection target |
 | S6 | Doc counts drifted in two places (187 vs 177; manifest 13/13/15/27 + two modules missing) | counts duplicated across documents | counts have ONE owner (Files-Manifest.md); all gates are count-free |
 | S7 | ~3.86 TKAS burned as excess fee across the 4-tx lifecycle (each tx dropped a 95-97M change output) | change guard (100M) equals the wallet UTXO size (100M) - change always dropped, silently | warn loudly on dropped change; consensus dust floor [TODO-verify] - probe before lowering the guard |
+| S8 | `silly genesis verify` printed help + exit 0 on BOTH live runs — the negative test false-passed | async command registered a promise, then fell through to the synchronous help fallback, whose process.exit(0) won the race | an async CLI command owns the process lifetime: top-level return (CJS) after promise registration; CLI negative tests assert EXIT CODES, not output alone |
 
 Meta-law (S1-S3): a generator is code that has never run until its output
 has executed. The acceptance lifecycle caught all three scaffold bugs at

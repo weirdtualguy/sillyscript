@@ -340,6 +340,7 @@ if (command === 'genesis') {
         console.error('[!] ' + e.message);
         process.exit(1);
     });
+    return; // S8: async command owns the process lifetime — do not fall through to help
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
