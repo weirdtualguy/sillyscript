@@ -1,4 +1,4 @@
-# SilverBible — The SilverScript Canon
+# SillyBible — the sillyscript canon
 
 **What this is:** the operating-knowledge layer for building Kaspa SilverScript
 covenant systems. Loaded together with `platform-pins.md` (platform facts) and
@@ -9,7 +9,7 @@ session in SilverScript — without the debugging rounds that produced it.
 
 | Layer | File | Contains |
 |---|---|---|
-| Canon (this doc) | SilverBible.md | Language, covenant model, patterns, methodology, operating rules |
+| Canon (this doc) | SillyBible.md | Language, covenant model, patterns, methodology, operating rules |
 | Platform facts | platform-pins.md | Compiler, codec, crypto, tx, network — every pin graded, evidenced, probe-backed |
 | Executable | ~/sillyscript/ | Verified modules + probes + scaffold; the facts enforced in code (`npm test`) |
 
@@ -18,16 +18,16 @@ The library VERIFIES them (npm test). Never trust a fact that lives in none of t
 never add a fact without grading it (see 0.4).
 
 **How to read this:** §0 is binding. §1-§4 are reference — lookup, not reading.
-§5-§7 (compile/ABI, tx engineering, platform reality) live in platform-pins.md;
-this doc carries only the bridge in §5. §8 is the project-archetype catalog —
-start there when beginning a new project. §9 is the workflow every project follows.
+The old compile/ABI, tx-engineering, and platform-reality chapters moved entirely into platform-pins.md;
+this doc carries only the bridge in §5. §6 is the project-archetype catalog —
+start there when beginning a new project. §7 is the workflow every project follows.
 
 ---
 
 ## 0. Operating Rules for AI Agents
 
 These rules are binding. Each exists because violating it caused a real
-incident (platform-pins.md §6, the 12-entry registry) or burned real debugging
+incident (the pins incident registries — §6 historical, §11 current) or burned real debugging
 rounds. Ordered by the damage their violation causes.
 
 ### 0.1 Derive, never clone
@@ -154,6 +154,9 @@ Terminology drift is a real bug class. Pin the vocabulary:
 - The brand is "Reliks" (relik/reliks) — never "relic/relics".
 - KIP-21 "lanes" are subnetwork-scoped; this stack's lanes are "mint branches".
 - "Redeem" = the full prefix‖state‖suffix script; "state" = only the middle span.
+- The toolkit is sillyscript (CLI: silly); the language is SilverScript (compiler:
+  silverc); the canon is SillyBible; the facts layer is platform-pins. Silver
+  and silly are never interchangeable.
 
 When docs and code disagree on a term, the disagreement is itself a pin.
 
@@ -175,9 +178,9 @@ Before any session builds, it verifies its foundations:
 
         cd ~/sillyscript
     npm test 2>&1 | grep -E 'ALL [0-9]+ PASS|FAIL'
-    # expect: 9 module PASS lines, zero FAIL. Per-module counts are owned
-    # by Files-Manifest.md - this gate is deliberately count-free (the
-    # old gate's hardcoded counts drifted).
+    # expect: module PASS lines per Files-Manifest.md, zero FAIL. This gate
+    # is deliberately count-free — counts have one owner (S6). The old gate's
+    # hardcoded counts drifted.
     node probes/verify-tags.js <current-artifact.json>   # when a live artifact is in play
 
 A failed probe = a pin has drifted (compiler upgrade, network change, API
@@ -192,7 +195,9 @@ skips this gate is building on unverified ground.
 - `node -e` resolves require() from cwd; `node script.js` from the script's dir.
 - Self-test blocks: `require.main === module && argv.includes('--test')`.
 - Never regex-patch source files — greedy matches corrupt them (incident #10).
-  Rewrite whole files.
+  Rewrite whole files — or, for surgical edits, use an exact-string anchor
+  patcher: indexOf/includes + line-splice, abort on any anchor miss, an
+  idempotency marker, and test gates after the edit (six-for-six, 2026-10-07).
 
 Each cost at least one debugging round. Cheap to obey, expensive to rediscover.
 
@@ -201,7 +206,7 @@ Each cost at least one debugging round. Cheap to obey, expensive to rediscover.
 ## 1. Mental Model
 
 If you internalize only one section, internalize this one. Everything in
-§3, §4, and §8 is an elaboration of the picture below.
+§3, §4, and §6 is an elaboration of the picture below.
 
 ### 1.1 The UTXO is the state machine
 
@@ -325,8 +330,6 @@ Three layers enforce, in this order:
 
 When a tx fails, determine WHICH layer rejected it before debugging the
 contract. The error message discriminates: consensus rejections name
-| `request deserialization error` | wire | Schema mismatch — run getBlock probe (§0.3); check wRPC vs REST format (pins §10.1) |
-| `script-units limit=9999` | wire | compute_budget silently dropped — testnet REST; use wRPC (pins §4.3) |
 consensus rules; script failures say "script ran, but verification failed."
 
 ### 1.7 The two-lineage discipline
@@ -816,12 +819,13 @@ engineering, and network reality are **fully specified in platform-pins.md**
 | Assembling/broadcasting transactions | §4 | `kaspa-tx.js` |
 | Debugging a rejection | §4.5–4.8 | `submitWithFeeDiscovery` |
 
-The Bible never restates a platform fact. If a fact seems to live here,
-it doesn't — it's in the pins, graded and probed.
+The Bible restates a platform fact only as a language-level rule with a pins
+citation — the full graded fact always lives in the pins. An uncited
+restatement is drift: cite it or remove it.
 
 ---
 
-## 8. Pattern Catalog
+## 6. Pattern Catalog
 
 One entry per project archetype. Each: problem → minimal shape → tx
 choreography → pitfalls → proof obligations. Source mines: the pixel-cove
@@ -831,7 +835,7 @@ v1–v13 `.sil` corpus, KCC20/KCC20Minter, OfferEscrow.
 its skeleton mentally, then diff your requirements against its pitfalls
 list. The catalog is a checklist engine, not a code library.
 
-### P0 - Genesis Bridge (wallet -> live covenant)
+### P0 — Genesis Bridge (wallet -> live covenant)
 
 **Problem:** every pattern below assumes the covenant already exists.
 This is the pattern that gets you there: deploy, advance, terminate -
@@ -842,7 +846,7 @@ not hand-built per spend.
 interact.js / close.js over a shared lib.js, all driven by
 data/deployment.json - the pointer chain. `txId` = birth certificate
 (immutable); `currentStateTx` = live location (mutable - the dual-field
-lineage discipline of 9.2, miniaturized); `pending` = crash marker
+lineage discipline of 7.2, miniaturized); `pending` = crash marker
 between broadcast and confirmation; `state` = current state (BigInts
 as "1n" strings).
 
@@ -1106,7 +1110,7 @@ trustlessly retrievable.
   program_hash extracted FROM CHAIN (mint input 0 sigscript → factory
   redeem → state field 0). Registry entries are untrusted hints.
 - Pitfalls:
-  - **Mass-dependent reveal floor** `[PIN]`: 8 chunks rejected at 0.02 KAS,
+  - **Mass-dependent reveal floor** `[PIN pins §4.5]`: 8 chunks rejected at 0.02 KAS,
     accepted at 1 KAS; chunked (4×2) converged at ~0.045 KAS/group via fee
     discovery. Chunk and discover per group.
   - **Pre-reveal state is unreadable** (§1.3): guard redeem parsing with
@@ -1135,7 +1139,7 @@ zero retrieval dependency.
     unchanged. Bake anchor: mix engine bytes with a runtime outpoint.
   - **byte[] state fields rejected** at fixed-width revisions — engine must
     be TEMPLATE data (ctor param), never runtime state.
-  - Engine cost law `[PIN]`: transient mass = 2×tx_bytes; mint sigscript
+  - Engine cost law `[PIN pins §4.5]`: transient mass = 2×tx_bytes; mint sigscript
     ≈ factory bc + 46; consensus ceiling ≈ 42KB engine at 100k mass.
   - Display adapters live OUTSIDE the anchored artifact (the viewBox-only
     SVG incident) — never churn anchored bytes for rendering bugs.
@@ -1167,7 +1171,7 @@ zero retrieval dependency.
 
 ---
 
-## 8.1 Choosing and combining archetypes
+### 6.1 Choosing and combining archetypes
 
 Real projects are compositions: Reliks = P3+P4+P5+P7+P9 with P8 replaced by
 P9's in-template engine; KCC20 is P6 standalone. Composition rules:
@@ -1183,14 +1187,14 @@ P9's in-template engine; KCC20 is P6 standalone. Composition rules:
 
 ---
 
-## 9. Workflow Protocol
+## 7. Workflow Protocol
 
 The lifecycle every SilverScript project follows. Each stage has a gate;
 skipping a gate is how incidents are born.
 
-### 9.1 Stage gates
+### 7.1 Stage gates
 
-1. DESIGN      → archetype chosen (§8), boundary decided (§3.7),
+1. DESIGN      → archetype chosen (§6), boundary decided (§3.7),
                  economics sanity-checked (dust/mass/fee floor — §1.5)
 2. AUTHOR      → contract + args generator with validation at the only
                  writable entry point (E-1/F-M2 class: dead-series configs
@@ -1203,11 +1207,11 @@ skipping a gate is how incidents are born.
                  rejected-with-rationale (both recorded); remediation
                  re-proven on-chain
 6. MAINNET     → overnight cool-down (rule 0.10) → checklist → genesis →
-                 verify-editions green → gallery trustless render
+                 verify-editions green (pixel-cove-era tool — use the repo artifact gates when absent) → gallery trustless render
 7. OPERATE     → dual-field lineage discipline; every deployed covenant
                  in the deployments registry; confirmations gated
 
-### 9.2 The ledger discipline
+### 7.2 The ledger discipline
 
 The ledger is a shadow of the chain; the chain is the truth. Therefore:
 
@@ -1225,7 +1229,7 @@ The ledger is a shadow of the chain; the chain is the truth. Therefore:
 - **spk normalization**: hex-of-hex quirks tolerated at read, normalized at
   write; chain-anchored checks unaffected.
 
-### 9.3 Deployments registry
+### 7.3 Deployments registry
 
 Every covenant ever deployed, with status — tracked | untracked | retired |
 monument | frozen. Strays (series-A's lane, stranded offers, probe dust)
@@ -1233,13 +1237,13 @@ are fine on testnet; on mainnet each is real money. A `deployments.json`
 checked by the verifier prevents quiet accumulation. DO-NOT-CLOSE decisions
 (monuments) are recorded WITH their rationale.
 
-### 9.4 The proof-obligation template
+### 7.4 The proof-obligation template
 
 Every route ships with, minimum:
 
 POSITIVE: the happy path accepted, on-chain, txid recorded
 NEGATIVE: each pitfall's guard rejecting, on-chain or preflight
-STATE:    verifier recomputes spk == blake2b(ledger-state redeem) for all
+STATE:    verifier recomputes P2SH(ledger-state redeem) == tracked spk for all
           tracked instances
 TRUST:    if a UI exists: trustless render chain, refuse-on-mismatch,
           registry = hint only
@@ -1248,12 +1252,13 @@ Consensus rejections are certificates (the orphan/fee/sequence messages
 prove the consensus layer enforced); script failures prove the covenant
 layer. Classify which layer each proof exercised.
 
-### 9.5 Error triage table
+### 7.5 Error triage table
 
 | Symptom | Layer | First check |
 |---|---|---|
+| "request deserialization error" | wire | Schema mismatch — getBlock ground-truth probe (§0.3); wRPC vs REST format (pins §10.1) |
 | "script ran, but verification failed" | script | tag derivation? arg order (ABI, not memory)? state encoding byte-exact? aliasing guard fired? |
-| "script-units limit=9999" | consensus | computeBudget present? testnet REST lacks it — use wRPC |
+| "script-units limit=9999" | wire (root) | compute_budget field-dropped at submission (testnet REST) — use wRPC; surfaces as a consensus rejection |
 | "required fee of X" | consensus | feeLoop: parse, +10%, rebuild |
 | "sequence locks conditions was not met" | consensus | CSV age vs this.ageDaa — two-layer (§2.4) |
 | "orphan where orphan is disallowed" | consensus | parent unconfirmed — wait for block, re-anchor UTXO |
@@ -1265,7 +1270,7 @@ layer. Classify which layer each proof exercised.
 ## Appendix A — Provenance & Maintenance Rules
 
 1. Facts live in exactly ONE place (pins for platform, Bible for model/
-   patterns/methodology). Duplication is how HANDOFF rotted.
+   patterns/methodology). Duplication is how the old session brief (HANDOFF.md — deleted 2026-10-07; git history keeps it) rotted.
 2. Every fact carries a grade ([SPEC]/[REF]/[PIN]/[LAW]/[TODO-verify]).
 3. [TODO-verify] facts graduate by probe only, never silently.
 4. On silverc upgrade: recompile canonical contracts → diff artifacts
@@ -1273,7 +1278,7 @@ layer. Classify which layer each proof exercised.
    every pin (pins Appendix B).
 5. On network/API drift: re-run probes; a failed probe invalidates its pin
    BEFORE it poisons a build (rule 0.11).
-6. New incidents enter pins §6 with root cause + law; if the law is
+6. New incidents enter the pins incident registry (§11 current; §6 historical) with root cause + law; if the law is
    behavioral (how an agent must act), it also enters §0.
 7. Append-only history lives in git; the canon stays curated. Splitting
    docs by function (Bible/pins/library) replaces splitting by time.
@@ -1293,6 +1298,10 @@ layer. Classify which layer each proof exercised.
   metadata**: (prefixLen, suffixLen, hash) triplet for foreign reads.
 - **Composite factory**: a factory redeem embedding foreign template parts
   and inlined ctor arrays (§1.4).
+- **E-*/F-* labels**: finding labels from the external-audit and gauntlet eras
+  (E-1 zero-royalty, F-M1 buyer-scheme binding, F-B14 storage mass, F-07
+  ledger-write) — each cited where its law appears in the patterns.
+- **ICC**: inter-covenant composition — §1.8's co-spend semantics; there is no eval.
 
 ## Appendix C — Lineage index (proof artifacts)
 
@@ -1330,9 +1339,9 @@ e1f2f6a8... (bricked close - pins 3.3b corollary).
 
 Known gaps: DECL lowering internals summarized from one compiler era -
 re-diff on upgrade; 1.4 composite-sizing quantified on two contract
-families (v11, v13); 9.1 stage gates predate the graduated mainnet-first
+families (v11, v13); 7.1 stage gates predate the graduated mainnet-first
 strategy (see SAFETY.md). Closed Oct 5: the P0 genesis-bridge gap (P0
-now in 8, twice lifecycle-proven via the scaffold); verification gates
+now in §6, twice lifecycle-proven via the scaffold); verification gates
 are count-free with Files-Manifest.md owning all counts.
 
 **Status: partially verified.** The core vertical claim is proven; the

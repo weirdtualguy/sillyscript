@@ -1,7 +1,7 @@
 # sillyscript — Complete File Manifest
 
 The single owner of per-module test counts. Every verification gate
-(master-prompt.md, platform-pins.md, SilverBible.md 0.11) is deliberately
+(master-prompt.md, platform-pins.md, SillyBible.md 0.11) is deliberately
 count-free and points HERE. Counts drift; this file is regenerated when
 they do.
 
@@ -9,7 +9,7 @@ they do.
 ├── .gitignore                     node_modules/, *.bak*, session artifacts
 ├── package.json                   npm manifest: @noble/hashes ^1.4.0, @noble/curves ^1.6.0
 │
-├── SilverBible.md                 THE CANON — mental model, covenant mechanics, pattern catalog
+├── SillyBible.md                 THE CANON — mental model, covenant mechanics, pattern catalog
 ├── platform-pins.md               THE FACTS — graded protocol pins, codec rules, incident registry
 ├── master-prompt.md               THE BOOT SECTOR — session load order + count-free gate
 ├── SAFETY.md                      THE STRATEGY — mainnet-first rails, fee/wallet limits

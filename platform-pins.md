@@ -1,7 +1,7 @@
 # platform-pins.md — Kaspa / SilverScript Verified Facts
 
 The verified-facts layer of the sillyscript package. Every fact is graded, evidenced, and probe-verifiable.
-Load this + SilverBible.md + the sillyscript library: a fresh session has everything, without the debugging rounds that learned it.
+Load this + SillyBible.md + the sillyscript library: a fresh session has everything, without the debugging rounds that learned it.
 
 Grades:
 - [REF] verified against source code at a pinned commit
@@ -303,7 +303,7 @@ original close has NO txid because none can exist.
 a termination entry makes the exit PERMANENTLY unsatisfiable - detectable
 only at first close attempt, fixable only by redeployment. The original
 Counter is stranded: 99,800,000 sompi locked at state count=2n (increment
-requires count<100; close is bricked). Recorded as a monument (Bible 9.3):
+requires count<100; close is bricked). Recorded as a monument (Bible 7.3):
 test-run/data/deployment.json status=stranded.
 
 Second proof - scaffold acceptance lifecycle (2026-10-05, testnet-10,

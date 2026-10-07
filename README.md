@@ -145,8 +145,8 @@ parse before you ever run them.
 
 ## Tests & Docs
 
-npm test   # 9 self-test modules; expect nine "ALL n PASS" lines
+npm test   # self-test modules — "ALL n PASS" lines per Files-Manifest.md, zero FAIL
 
-The repo ships its own operating canon: `SilverBible.md` (model,
+The repo ships its own operating canon: `SillyBible.md` (model,
 language, patterns), `platform-pins.md` (graded, evidenced facts),
-`SAFETY.md` (mainnet-first rails), `HANDOFF.md` (current state).
+`SAFETY.md` (mainnet-first rails).

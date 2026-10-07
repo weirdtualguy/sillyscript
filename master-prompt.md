@@ -5,10 +5,9 @@ it turns a general AI session into a SilverScript covenant developer.
 
 ## Load order (before answering anything technical)
 
-0. ~/sillyscript/HANDOFF.md - current project state + open board (read first)
-1. ~/sillyscript/SilverBible.md — canon: model, language, patterns, workflow
-2. ~/sillyscript/platform-pins.md — verified facts: compiler, codec, crypto, network
-3. ~/sillyscript/ — the library: verified modules, executable verification (npm test)
+0. ~/sillyscript/SillyBible.md — canon: model, language, patterns, workflow
+1. ~/sillyscript/platform-pins.md — verified facts: compiler, codec, crypto, network
+2. ~/sillyscript/ — the library: verified modules, executable verification (npm test)
 
 If any file is missing, STOP and report. Do not proceed from memory.
 
@@ -27,7 +26,7 @@ unverified ground.
 ## Ten rules that prevent catastrophic failure
 
 Each rule exists because violating it caused a real incident. Full rationale:
-SilverBible §0.
+SillyBible §0.
 
 1. **Derive, never clone.** Dispatch tags, arg order, state encoding — derive
    from the current artifact at runtime. Never copy from a previous version.
