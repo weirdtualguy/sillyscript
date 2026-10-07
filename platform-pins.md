@@ -12,7 +12,7 @@ Grades:
 Re-verify before any session:
     cd ~/sillyscript
     npm test 2>&1 | grep -E 'ALL [0-9]+ PASS|FAIL'
-    # expect: 9 module PASS lines, zero FAIL - counts owned by Files-Manifest.md
+    # expect: module PASS lines, zero FAIL - counts owned by Files-Manifest.md
 Network check: curl -s -o /dev/null -w "%{http_code}" https://api.kaspa.org/transactions/f6ebb717e04384770a833e87c8c7b5c3b8ff57adf4c1cda0f6c1aa097af2dc55
 
 ---
@@ -525,7 +525,7 @@ section retains only what pins uniquely holds: the probe layer.
 ## 8. Pre-Session Checklist
 
         cd ~/sillyscript
-    npm test 2>&1 | grep -E 'ALL [0-9]+ PASS|FAIL'   # 9 module lines, zero FAIL
+    npm test 2>&1 | grep -E 'ALL [0-9]+ PASS|FAIL'   # module PASS lines per Files-Manifest.md, zero FAIL
     node probes/verify-tags.js <current-artifact.json>
     curl -s -o /dev/null -w "%{http_code}" https://api.kaspa.org/transactions/f6ebb717e04384770a833e87c8c7b5c3b8ff57adf4c1cda0f6c1aa097af2dc55
     # expect: 200
@@ -709,6 +709,12 @@ sillyscript's pure-JS path is already proven.
 | S7 | ~3.86 TKAS burned as excess fee across the 4-tx lifecycle (each tx dropped a 95-97M change output) | change guard (100M) equals the wallet UTXO size (100M) - change always dropped, silently | warn loudly on dropped change; consensus dust floor [TODO-verify] - probe before lowering the guard |
 | S8 | `silly genesis verify` printed help + exit 0 on BOTH live runs — the negative test false-passed | async command registered a promise, then fell through to the synchronous help fallback, whose process.exit(0) won the race | an async CLI command owns the process lifetime: top-level return (CJS) after promise registration; CLI negative tests assert EXIT CODES, not output alone |
 | S9 | live --initial-state {count:3} failed with the raw TypeError "Cannot mix BigInt and other types" instead of the baked-state diagnosis; the positive {count:0} run could NEVER pass (Number 0 fails the 0 === 0n early-return) | sil-encoder asymmetry: the sigscript arg path coerces via asBigInt, the state path (encodeFixedPayload → serializeScriptNumFixed8) forgot; every unit test used BigInt literals, so the gap surfaced only in the live CLI run | coercion contracts are tested at the boundary where untyped input enters (JSON/CLI), not only with typed literals; fail-closed held (right layer, exit 1), but a raw internals message is itself a defect — the diagnosis is part of the contract |
+
+Session closeout 2026-10-07: the machine-proposed entries above (3.2 authIndex amendment,
+4.1 testnet-10 retrieval addendum, S8, S9) were ratified by the operator after evidence
+re-run — probes/resolve-authindex.js (two VERDICT: A lines + retrieval schema dump),
+node genesis-verify.js --test (21), node sil-encoder.js --test (36). Provenance: inserted
+by session patchers, graded per the evidence, operator-confirmed.
 
 Meta-law (S1-S3): a generator is code that has never run until its output
 has executed. The acceptance lifecycle caught all three scaffold bugs at

@@ -32,6 +32,7 @@ they do.
 ├── vesting.sil                    REFERENCE CONTRACT: vesting escrow source
 ├── vesting.json                   REFERENCE ARTIFACT: compiled JSON
 ├── vesting.d.ts                   REFERENCE TYPES: generated declarations
+├── counter-abi.json              REFERENCE ARTIFACT: Counter — chain-verified testnet-10 deploy (genesis bd4085b1…, pins 3.3b)
 │
 ├── bin/
 │   ├── silly.js                   CLI: setup / init / check (check parses all templates)
@@ -53,7 +54,7 @@ they do.
 
 | File | Tests | What it does |
 |---|---|---|
-| `genesis-verify.js` | 21 | Genesis verification: source/artifact vs on-chain covenant — state/script/consensus layers, chain-read covenant_id as the verdict source (19 core + 2 chain-anchored Counter positives, active when counter-abi.json is present). |
+| `genesis-verify.js` | 21 | Genesis verification: source/artifact vs on-chain covenant — state/script/consensus layers, chain-read covenant_id as the verdict source (19 core + 2 chain-anchored Counter positives, active when counter-abi.json is present). Deferred: UTXO-lookup genesis discovery (Path B); heterogeneous covenant groups report per-output detail under ALL-match strictness. |
 | `index.js` | — | Unified package entrypoint: Contract, Provider, generateTypes, primitives. |
 | `contract.js` | 18 | High-level Contract: state reflection, arg normalization, next-state derivation, input population, continuation binding. |
 | `provider.js` | 16 | Abstract Provider, KaspaRestProvider (mainnet/testnet), MockProvider with UTXO tracking and block simulation. |
