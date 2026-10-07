@@ -451,7 +451,7 @@ consecutive actions on block confirmation before signing the next spend.
 | electron-10.kaspa.stream | wRPC full submission | wRPC only (404 on REST) |
 | kascov.io | covenant lineage, live spks | no sigscripts in tx JSON, ~60s lag |
 | seeders (seeder1/2.kaspad.net:18110) | node discovery | REJECT valid spends as orphans — never broadcast via seeders |
-| mainnet wRPC | (none hardcoded) | env-only: PC_MAINNET_WRPC (kaspa-wrpc.js). Naming wart: the WRPC_ENDPOINTS const reads MAINNET_WRPC - dead code (11-era finding). |
+| mainnet wRPC | (none hardcoded) | env-only: PC_MAINNET_WRPC (kaspa-wrpc.js). Naming wart: the WRPC_ENDPOINTS const reads MAINNET_WRPC - NOT dead code [PIN 2026-10-07 grep audit] — the const is USED at :163; the wart is the env-var naming split MAINNET_WRPC :25 vs PC_MAINNET_WRPC :157. Behavior decision pending. |
 
 [PIN] api-testnet-10.kaspa.org does NOT exist (000). Correct: api-tn10.kaspa.org.
 [PIN] ENOTFOUND on a working host is usually transient DNS/VPN — re-probe before patching.
