@@ -12,7 +12,7 @@
 const fs = require('fs');
 const { loadArtifact } = require('./sil-abi');
 const { buildCompleteSigScript, buildRedeem, encodeState } = require('./sil-encoder');
-const { p2shAddress, covenantId, p2shSpk } = require('./kaspa-crypto');
+const { p2shAddress, p2shSpk } = require('./kaspa-crypto');
 const { signCovenantInput, setContinuationCovenant, setGenesisCovenant } = require('./kaspa-tx');
 const { KaspaRestProvider, MockProvider, Provider } = require('./provider');
 

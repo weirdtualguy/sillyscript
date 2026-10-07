@@ -1,7 +1,10 @@
 node_modules/
 *.bak*
 
-# session artifacts & stray files (kept on disk, untracked)
-2^53
+# session artifacts & one-shot patchers (untracked — delete after use)
+integrate-*.js
+fix-*.js
+cleanup-*.js
+closeout-*.js
 patch-*.js
 .backup-pre-audit/

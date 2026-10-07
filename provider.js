@@ -4,7 +4,6 @@
 // transport implementations (REST, gRPC, WebSocket, or In-Memory Mocks).
 // Pure JavaScript, zero external dependencies.
 
-const FEE_REGEX = /required fee of (\d+)/i;
 
 const NETWORKS = {
   mainnet: { hrp: 'kaspa', rest: 'https://api.kaspa.org', dust: 100000000n },
@@ -381,7 +380,6 @@ module.exports = {
   KaspaRestProvider,
   MockProvider,
   toRestFormat,
-  FEE_REGEX,
   NETWORKS,
 };
 
