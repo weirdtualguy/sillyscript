@@ -34,9 +34,8 @@ async function fetchTx(txid) {
         console.log('pubkey extracted from P2PK script:', pubkey.toString('hex'));
     } else {
         console.log('UTXO script is not P2PK — length:', utxoScriptBuf.length);
-        // Try the known mainnet key from HANDOFF as fallback
-        pubkey = Buffer.from('25aafe02662998a62b4b4c1a887005ea8c604705c0a3cb29c3f63dfb85332f8b', 'hex');
-        console.log('using known mainnet key:            ', pubkey.toString('hex'));
+        console.log('aborting: pins 3.5 — the verification pubkey must come from the UTXO script, never a hardcoded constant');
+        process.exit(1);
     }
 
     // Build sighash inputs/outputs
