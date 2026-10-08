@@ -21,6 +21,7 @@ they do.
 ├── provider.js                    TRANSPORT LAYER: Provider, KaspaRestProvider, MockProvider
 ├── silly-compile.js               COMPILE LAYER: silverc invocation + fail-closed verification
 ├── silly-typegen.js               TOOLING: CLI & programmatic TypeScript type generator
+├── make-session-pack.js           TOOLING: builds SESSION-PACK.md (chat-handoff pack; pack itself is a gitignored build artifact)
 ├── sil-abi.js                     CODEC 1: artifact loader, tag verifier, state decoder
 ├── sil-encoder.js                 CODEC 2: minimal/explicit push builder, columnar struct arrays
 ├── kaspa-crypto.js                CRYPTO 3: bech32, covenant ID, P2SH/P2PK formats
