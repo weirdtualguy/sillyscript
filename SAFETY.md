@@ -25,7 +25,7 @@
 
 | Limit | Value | Status |
 |---|---|---|
-| MAX_FEE_PER_TX | 5 KAS (50_000_000_000n sompi) | ENFORCED in scaffold scripts: hard abort before broadcast, plus a >2x-intent gate (abort on mainnet, warn on testnet). NOT enforced in library code. |
+| MAX_FEE_PER_TX | 5 KAS (500_000_000n sompi) | ENFORCED in scaffold scripts: hard abort before broadcast, plus a >2x-intent gate (abort on mainnet, warn on testnet). NOT enforced in library code. |
 | MAX_TX_VALUE | 10 KAS during development | ASPIRATIONAL — nothing enforces it |
 | DUST_ONLY_TESTING | 1-2 KAS per UTXO for new contract types | ASPIRATIONAL — nothing enforces it |
 | COOL_DOWN | overnight re-read before mainnet genesis | PROCESS rule — human discipline (Bible 0.10) |

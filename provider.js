@@ -53,7 +53,9 @@ class Provider {
   constructor(network = 'mainnet') {
     if (typeof network === 'string') {
       this.networkName = network;
-      this.network = NETWORKS[network] || { hrp: network === 'testnet' ? 'kaspatest' : 'kaspa' };
+      if (Object.prototype.hasOwnProperty.call(NETWORKS, network) === false)
+        throw new Error("Provider: unknown network '" + network + "' (expected 'mainnet' or 'testnet'; pass a config object for a custom network)");
+      this.network = NETWORKS[network];
     } else if (typeof network === 'object' && network !== null) {
       this.networkName = network.name || 'custom';
       this.network = network;
@@ -451,6 +453,16 @@ if (require.main === module && process.argv.includes('--test')) {
       outputs: [{ amount: 100000000n, script: '20' + '22'.repeat(32) + 'ac' }],
     });
     t('toRestFormat structure', restFormat.transaction && restFormat.transaction.version === 1);
+    // Unknown network names must fail closed, never fall back to mainnet (audit S11)
+    for (const bad of ['testnet-10', 'Testnet', 'mainet', 'constructor', '']) {
+      let threw = false;
+      try { new KaspaRestProvider(bad); } catch (e) { threw = /unknown network/.test(e.message); }
+      t("unknown network '" + bad + "' throws", threw);
+    }
+    {
+      const rt = new KaspaRestProvider('testnet');
+      t('testnet still resolves to kaspatest + tn10 REST', rt.hrp === 'kaspatest' && rt.url.includes('tn10'));
+    }
     t('toRestFormat amount is string', restFormat.transaction.outputs[0].amount === '100000000');
 
 

@@ -95,7 +95,7 @@ async function main() {
     // Fee sanity (pins 11/S5, S7): txFee includes any dropped change.
     const actualFee = txFee(tx);
     const feeIntent = WALLET_FEE;
-    if (actualFee > 50000000000n) {
+    if (actualFee > 500000000n) {
         console.error('FATAL: fee ' + actualFee + ' sompi exceeds the 5 KAS hard limit (SAFETY.md).');
         process.exit(1);
     }

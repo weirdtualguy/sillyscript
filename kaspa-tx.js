@@ -322,6 +322,15 @@ if (require.main === module && process.argv.includes('--test')) {
         t('p2shOutput script = 35B', out2.script.length === 70);
     }
 
+    // Fee rail: the 5 KAS hard limit in every scaffold template (audit S10)
+    {
+        const fs = require('fs'), path = require('path');
+        for (const f of ['deploy', 'interact', 'close']) {
+            const src = fs.readFileSync(path.join(__dirname, 'bin', 'templates', f + '.js.txt'), 'utf8');
+            t('fee hard limit = 5 KAS (' + f + ')', src.includes('actualFee > ' + (5n * 100000000n) + 'n') && src.includes('50000000000n') === false);
+        }
+    }
+
     // Mass & Sequence primitives
     {
         t('SEQUENCE_DISABLE bit 63 set', (SEQUENCE_DISABLE & (1n << 63n)) !== 0n);

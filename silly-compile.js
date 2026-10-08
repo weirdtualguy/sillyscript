@@ -48,9 +48,14 @@ function findSilverc() {
 
 function toArtifactValue(val) {
     if (typeof val === 'bigint') {
+        // JSON numbers are doubles: beyond 2^53 the args file would round silently (audit S13)
+        if (val > BigInt(Number.MAX_SAFE_INTEGER) || val < BigInt(Number.MIN_SAFE_INTEGER))
+            throw new Error('silly-compile: constructor int ' + val + ' is outside the safe-integer range; refusing to bake a rounded value');
         return { kind: 'int', value: Number(val) };
     }
     if (typeof val === 'number' && Number.isInteger(val)) {
+        if (Number.isSafeInteger(val) === false)
+            throw new Error('silly-compile: constructor int ' + val + ' is not a safe integer; pass a BigInt within +/-(2^53-1)');
         return { kind: 'int', value: val };
     }
     if (typeof val === 'boolean') {
@@ -260,6 +265,13 @@ function selfTest() {
     t('array → kind:bytes', JSON.stringify(toArtifactValue([255, 0])) === '{"kind":"bytes","value":[255,0]}');
     t('null → empty args', buildArgs(null).length === 0);
     t('undefined → empty args', buildArgs(undefined).length === 0);
+    // Unsafe integers fail closed at the JSON boundary (audit S13)
+    const thrC = f => { try { f(); return false; } catch (e) { return /silly-compile/.test(e.message); } };
+    t('bigint 2^53-1 accepted', JSON.stringify(toArtifactValue(2n ** 53n - 1n)) === '{"kind":"int","value":9007199254740991}');
+    t('bigint 2^53 rejected', thrC(() => toArtifactValue(2n ** 53n)));
+    t('bigint -(2^53) rejected', thrC(() => toArtifactValue(-(2n ** 53n))));
+    t('number 2^53 rejected', thrC(() => toArtifactValue(2 ** 53)));
+    t('61-bit serial rejected, not rounded', thrC(() => toArtifactValue((1n << 61n) + 1n)));
     t('object preserves order', JSON.stringify(buildArgs({ a: 1, b: true })) === '[{"kind":"int","value":1},{"kind":"bool","value":true}]');
 
     // Object args warning: insertion order = constructor order

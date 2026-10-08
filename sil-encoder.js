@@ -172,7 +172,10 @@ function asBytes(value, expectedLen, context) {
 
 function asBigInt(value, context) {
   if (typeof value === 'bigint') return value;
-  if (typeof value === 'number' && Number.isInteger(value)) return BigInt(value);
+  if (typeof value === 'number') {
+    if (Number.isSafeInteger(value)) return BigInt(value);
+    throw new Error('sil-encoder: ' + context + ': number ' + value + ' is not a safe integer - pass a BigInt');
+  }
   throw new Error(`sil-encoder: ${context}: expected BigInt or integer, got ${typeof value}`);
 }
 
@@ -224,8 +227,12 @@ function encodeFixedPayload(type, value, context) {
     case 'int': case 'temporal':
       return serializeScriptNumFixed8(asBigInt(value, context));
     case 'bool':
+      if (typeof value !== 'boolean')
+        throw new Error('sil-encoder: ' + context + ': expected boolean, got ' + typeof value);
       return Buffer.from([value ? 1 : 0]);
     case 'byte':
+      if (typeof value !== 'number' || Number.isInteger(value) === false || value < 0 || value > 255)
+        throw new Error('sil-encoder: ' + context + ': expected byte 0-255, got ' + String(value));
       return Buffer.from([value]);
     case 'pubkey':     return asBytes(value, 32, context);
     case 'sig':        return asBytes(value, 65, context);
@@ -262,7 +269,7 @@ function encodeSigArg(buf, type, value, paramName, resolveStruct) {
       return;
     }
     case 'byte': {
-      if (typeof value !== 'number' || value < 0 || value > 255)
+      if (typeof value !== 'number' || Number.isInteger(value) !== true || value < 0 || value > 255)
         throw new Error(`sil-encoder: ${ctx}: expected byte 0-255`);
       buf.pushMinimal(Buffer.from([value]));
       return;
@@ -572,6 +579,28 @@ if (require.main === module && process.argv.includes('--test')) {
     try { ok = encodeState(mini, { count: 0 }).equals(encodeState(mini, { count: 0n })); }
     catch (e) { ok = false; }
     t('state int accepts Number (JSON CLI path)', ok, true);
+}
+
+// Strict coercion on the state/array path: byte, bool, unsafe Numbers (audit S12)
+{
+    const thr = f => { try { f(); return false; } catch (e) { return /sil-encoder/.test(e.message); } };
+    const fx = (type, v) => () => encodeFixedPayload(type, v, 'x');
+    t('state byte 256 rejected', thr(fx({ kind: 'byte' }, 256)), true);
+    t('state byte -1 rejected', thr(fx({ kind: 'byte' }, -1)), true);
+    t('state byte 1.5 rejected', thr(fx({ kind: 'byte' }, 1.5)), true);
+    t("state byte '7' rejected", thr(fx({ kind: 'byte' }, '7')), true);
+    t('state byte null rejected', thr(fx({ kind: 'byte' }, null)), true);
+    t("state bool 'false' rejected", thr(fx({ kind: 'bool' }, 'false')), true);
+    t('state bool 0 rejected', thr(fx({ kind: 'bool' }, 0)), true);
+    t('state byte 255 -> ff', hex(encodeFixedPayload({ kind: 'byte' }, 255, 'x')), 'ff');
+    t('state bool true -> 01', hex(encodeFixedPayload({ kind: 'bool' }, true, 'x')), '01');
+    t('state bool false -> 00', hex(encodeFixedPayload({ kind: 'bool' }, false, 'x')), '00');
+    t('unsafe integer Number rejected', thr(fx({ kind: 'int' }, 2 ** 53)), true);
+    t('safe integer Number accepted', hex(encodeFixedPayload({ kind: 'int' }, 2 ** 53 - 1, 'x')), hex(encodeFixedPayload({ kind: 'int' }, 2n ** 53n - 1n, 'x')));
+    const bc = { entry: () => ({ params: [{ name: 'b', type: { kind: 'byte' } }], tag: Buffer.from('00112233', 'hex') }), bytecode: Buffer.alloc(10), resolveStruct: () => null };
+    t('sigscript byte 1.5 rejected', thr(() => buildSigScript(bc, 'x', [1.5])), true);
+    t('sigscript byte NaN rejected', thr(() => buildSigScript(bc, 'x', [NaN])), true);
+    t('sigscript byte 255 accepted', hex(buildSigScript(bc, 'x', [255])).slice(0, 4), '01ff');
 }
   console.log(fail ? `\n${fail} FAILURE(S)` : `\nALL ${pass} PASS`);
   process.exit(fail ? 1 : 0);

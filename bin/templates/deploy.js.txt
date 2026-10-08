@@ -105,7 +105,7 @@ async function main() {
     // includes any change the dust guard dropped.
     const actualFee = txFee(tx);
     console.log('Fee: ' + actualFee + ' sompi (inputs - outputs)');
-    if (actualFee > 50000000000n) {
+    if (actualFee > 500000000n) {
         console.error('FATAL: fee ' + actualFee + ' sompi exceeds the 5 KAS hard limit (SAFETY.md).');
         process.exit(1);
     }
