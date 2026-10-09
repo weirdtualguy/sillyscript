@@ -19,7 +19,7 @@
 // Args format: array (positional, matches constructor param order) or object
 // (insertion order MUST match constructor param order — arrays are safer).
 
-const { execSync } = require('child_process');
+const { execSync, execFileSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
@@ -32,6 +32,14 @@ const MAX_SIGSCRIPT = 250000;
 // ─────────────────────────────────────────────────────────────────────────────
 // silverc discovery
 // ─────────────────────────────────────────────────────────────────────────────
+
+// No shell: paths with spaces or metacharacters reach silverc intact (audit S23)
+function invokeSilverc(silverc, silPath, argsPath, out) {
+    const argv = argsPath
+        ? [silPath, '--constructor-args', argsPath, '-o', out]
+        : [silPath, '-o', out];
+    execFileSync(silverc, argv, { stdio: 'pipe', timeout: 60000 });
+}
 
 function findSilverc() {
     if (fs.existsSync(SILVERC_HOME)) return SILVERC_HOME;
@@ -158,12 +166,8 @@ function compile(silPath, args, outputPath) {
 
     try {
         // Invoke silverc
-        const cmd = argsPath
-            ? `${silverc} ${silPath} --constructor-args ${argsPath} -o ${out}`
-            : `${silverc} ${silPath} -o ${out}`;
-
         try {
-            execSync(cmd, { stdio: 'pipe', timeout: 60000 });
+            invokeSilverc(silverc, silPath, argsPath, out);
         } catch (e) {
             const stderr = (e.stderr || e.message || '').toString();
             throw new Error(`silly-compile: silverc failed:\n${stderr.split('\n').slice(0, 10).join('\n')}`);
@@ -265,6 +269,24 @@ function selfTest() {
     t('array → kind:bytes', JSON.stringify(toArtifactValue([255, 0])) === '{"kind":"bytes","value":[255,0]}');
     t('null → empty args', buildArgs(null).length === 0);
     t('undefined → empty args', buildArgs(undefined).length === 0);
+    // silverc is invoked without a shell: hostile paths arrive intact (audit S23)
+    {
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sc a;b-'));
+        const fake = path.join(dir, 'fake silverc.js');
+        fs.writeFileSync(fake, "const fs = require('fs'); const a = process.argv.slice(2); fs.writeFileSync(a[a.indexOf('-o') + 1], JSON.stringify(a));");
+        const outP = path.join(dir, 'out file.json'), argP = path.join(dir, 'args file.json');
+        invokeSilverc(process.execPath, fake, argP, outP);
+        const g1 = JSON.parse(fs.readFileSync(outP, 'utf8'));
+        t('silverc argv intact with spaces and ; in paths', g1.length === 4 && g1[0] === '--constructor-args' && g1[1] === argP && g1[2] === '-o' && g1[3] === outP);
+        invokeSilverc(process.execPath, fake, null, outP);
+        const g2 = JSON.parse(fs.readFileSync(outP, 'utf8'));
+        t('silverc argv without constructor args', g2.length === 2 && g2[0] === '-o' && g2[1] === outP);
+        let threw = false;
+        try { invokeSilverc(process.execPath, path.join(dir, 'missing.js'), null, outP); } catch (e) { threw = true; }
+        t('silverc failure propagates', threw);
+        fs.rmSync(dir, { recursive: true, force: true });
+    }
+
     // Unsafe integers fail closed at the JSON boundary (audit S13)
     const thrC = f => { try { f(); return false; } catch (e) { return /silly-compile/.test(e.message); } };
     t('bigint 2^53-1 accepted', JSON.stringify(toArtifactValue(2n ** 53n - 1n)) === '{"kind":"int","value":9007199254740991}');
@@ -304,4 +326,4 @@ if (require.main === module) {
     cli();
 }
 
-module.exports = { compile, findSilverc, buildArgs, toArtifactValue, verifyArtifact };
+module.exports = { compile, findSilverc, buildArgs, toArtifactValue, verifyArtifact, invokeSilverc };

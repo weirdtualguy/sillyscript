@@ -48,14 +48,26 @@ const u16 = v => { const b = Buffer.alloc(2); b.writeUInt16LE(v); return b; };
 const u32 = v => { const b = Buffer.alloc(4); b.writeUInt32LE(v); return b; };
 const u64 = v => { const b = Buffer.alloc(8); b.writeBigUInt64LE(BigInt(v)); return b; };
 const varB = b => Buffer.concat([u64(b.length), b]);
-const hx = h => Buffer.from(h || '', 'hex');
+// Strict: Buffer.from(str, 'hex') silently truncates at the first bad character (audit S22)
+const hx = h => {
+    if (h instanceof Uint8Array) return Buffer.from(h);
+    const s = h || '';
+    if (typeof s !== 'string' || s.length % 2 !== 0 || /^[0-9a-fA-F]*$/.test(s) === false)
+        throw new Error('kaspa-sighash: invalid hex field');
+    return Buffer.from(s, 'hex');
+};
+const hx32 = (h, what) => {
+    const b = hx(h);
+    if (b.length !== 32) throw new Error('kaspa-sighash: ' + what + ' must be 32 bytes, got ' + b.length);
+    return b;
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Sub-hashes
 // ─────────────────────────────────────────────────────────────────────────────
 
 const previousOutputsHash = inputs =>
-    H(Buffer.concat(inputs.map(i => Buffer.concat([hx(i.txId), u32(i.index)]))));
+    H(Buffer.concat(inputs.map(i => Buffer.concat([hx32(i.txId, 'input txId'), u32(i.index)]))));
 
 const sequencesHash = inputs =>
     H(Buffer.concat(inputs.map(i => u64(i.sequence || 0))));
@@ -65,7 +77,7 @@ const outputsHashV1 = outputs =>
     H(Buffer.concat(outputs.map(o => {
         const parts = [u64(o.amount), u16(0), varB(hx(o.scriptPublicKey))];
         if (o.covenant) {
-            parts.push(u8(1), u16(o.covenant.authorizingInput), hx(o.covenant.covenantId));
+            parts.push(u8(1), u16(o.covenant.authorizingInput), hx32(o.covenant.covenantId, 'covenantId'));
         } else {
             parts.push(u8(0));
         }
@@ -89,7 +101,7 @@ function kaspaSighashV1(inputs, outputs, inputIndex, gas = 0n) {
     P.push(previousOutputsHash(inputs));
     P.push(sequencesHash(inputs));
     // sig_op_counts_hash: skipped for v1 (only in v0 preimage)
-    P.push(hx(inp.txId));
+    P.push(hx32(inp.txId, 'input txId'));
     P.push(u32(inp.index));
     P.push(u16(0));                    // script version of the UTXO being spent
     P.push(varB(hx(inp.spk)));
@@ -144,6 +156,16 @@ if (require.main === module && process.argv.includes('--test')) {
     }];
     const hash2 = kaspaSighashV1(dummyInputs, covOutputs, 0);
     t('covenant binding changes sighash', !hash.equals(hash2));
+
+    // Strict hex fields (audit S22)
+    {
+        const thr = f => { try { f(); return false; } catch (e) { return /kaspa-sighash/.test(e.message); } };
+        t('rejects 63-char txId', thr(() => kaspaSighashV1([{ ...dummyInputs[0], txId: '0'.repeat(63) }], dummyOutputs, 0)));
+        t('rejects non-hex txId', thr(() => kaspaSighashV1([{ ...dummyInputs[0], txId: 'zz'.repeat(32) }], dummyOutputs, 0)));
+        t('rejects short covenantId', thr(() => kaspaSighashV1(dummyInputs, [{ ...covOutputs[0], covenant: { authorizingInput: 0, covenantId: 'ab'.repeat(31) } }], 0)));
+        t('rejects odd-length spk hex', thr(() => kaspaSighashV1([{ ...dummyInputs[0], spk: 'abc' }], dummyOutputs, 0)));
+        t('uppercase covenantId hashes identically', kaspaSighashV1(dummyInputs, [{ ...covOutputs[0], covenant: { authorizingInput: 0, covenantId: 'AB'.repeat(32) } }], 0).equals(hash2));
+    }
 
     // Different input index changes the hash (signing different input)
     const inputs2 = [...dummyInputs, { ...dummyInputs[0], index: 1 }];

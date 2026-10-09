@@ -21,7 +21,7 @@ const DEFAULT_GENESISES = [
 
 (async () => {
   const txids = process.argv.slice(2).length ? process.argv.slice(2) : DEFAULT_GENESISES;
-  const provider = new KaspaRestProvider('testnet');
+  const provider = new KaspaRestProvider(process.env.PC_NET || 'testnet'); // PC_NET=mainnet for mainnet txids
 
   for (const txid of txids) {
     console.log('\n=== genesis', txid);
@@ -45,9 +45,15 @@ const DEFAULT_GENESISES = [
           scriptVersion: 0,
           script: Buffer.from(o.script_public_key, 'hex'),
           covenant_id: o.covenant_id,
+          covenant_authorizing_input: o.covenant_authorizing_input,
         }))
         .sort((a, b) => a.index - b.index);
       if (group.length === 0) { console.log('  no covenant_id on any output'); continue; }
+      const contIn = ins.filter(x => x.covenant_id !== undefined && x.covenant_id !== null);
+      if (contIn.length > 0) {
+        console.log('  CONTINUATION: ' + contIn.length + ' input(s) already carry a covenant_id; the genesis preimage does not apply, skipping');
+        continue;
+      }
 
       const rawId = group[0].covenant_id;
       if (typeof rawId !== 'string') { console.log('  covenant_id not a flat string:', rawId); continue; }
@@ -86,8 +92,11 @@ const DEFAULT_GENESISES = [
       else
         console.log('  VERDICT: AMBIGUOUS — A:', aMatch, 'B:', bMatch);
 
+      if (group[0].covenant_authorizing_input !== undefined && group[0].covenant_authorizing_input !== null && aMatch.length === 1)
+        console.log('  chain field vs brute force: ' + (parseInt(group[0].covenant_authorizing_input, 10) === aMatch[0] ? 'AGREE' : '*** DISAGREE ***'));
+
       // ── 4. Pinned chain-verified vector (for genesis-verify unit tests) ──
-      const authPos = group[0].covenant_authorizing_input !== undefined
+      const authPos = (group[0].covenant_authorizing_input !== undefined && group[0].covenant_authorizing_input !== null)
         ? parseInt(group[0].covenant_authorizing_input, 10)
         : (aMatch.length === 1 ? aMatch[0] : (bMatch.length === 1 ? bMatch[0] : null));
       if (authPos !== null && ins[authPos]) {

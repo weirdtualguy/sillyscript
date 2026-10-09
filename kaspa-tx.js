@@ -116,9 +116,23 @@ const txFee = tx =>
     tx.inputs.reduce((s, i) => s + i.amount, 0n) -
     tx.outputs.reduce((s, o) => s + o.amount, 0n);
 
+// Signatures commit to the covenant binding: binding after signing silently invalidates them (audit S21)
+function assertUnsigned(tx, what) {
+    if (tx.inputs.some(i => i.sigScript !== undefined && i.sigScript !== null && i.sigScript !== ''))
+        throw new Error(what + ': inputs are already signed; bind covenants before signing');
+}
+
 function setGenesisCovenant(tx, outputIndex, authInputIndex) {
     const out = tx.outputs[outputIndex];
     const authInput = tx.inputs[authInputIndex];
+    if (out === undefined) throw new Error('setGenesisCovenant: no output ' + outputIndex);
+    if (authInput === undefined) throw new Error('setGenesisCovenant: no input ' + authInputIndex);
+    assertUnsigned(tx, 'setGenesisCovenant');
+    tx.outputs.forEach((o, i) => {
+        if (i !== outputIndex && o.covenant && o.covenant.authorizingInput === authInputIndex)
+            throw new Error('setGenesisCovenant: output ' + i + ' is already bound to input ' + authInputIndex +
+                '; a multi-output genesis needs the group ID over all outputs, which this helper does not compute');
+    });
     const covId = covenantId(
         Buffer.from(authInput.txId, 'hex'),
         authInput.index,
@@ -129,6 +143,11 @@ function setGenesisCovenant(tx, outputIndex, authInputIndex) {
 }
 
 function setContinuationCovenant(tx, outputIndex, authInputIndex, covenantIdHex) {
+    if (tx.outputs[outputIndex] === undefined) throw new Error('setContinuationCovenant: no output ' + outputIndex);
+    if (tx.inputs[authInputIndex] === undefined) throw new Error('setContinuationCovenant: no input ' + authInputIndex);
+    if (typeof covenantIdHex !== 'string' || /^[0-9a-fA-F]{64}$/.test(covenantIdHex) === false)
+        throw new Error('setContinuationCovenant: covenantId must be 64 hex chars');
+    assertUnsigned(tx, 'setContinuationCovenant');
     tx.outputs[outputIndex].covenant = { authorizingInput: authInputIndex, covenantId: covenantIdHex };
 }
 
@@ -319,6 +338,23 @@ if (require.main === module && process.argv.includes('--test')) {
         t('covenant ID deterministic', c1 === c2);
         t('covenant ID 64 hex chars', c1.length === 64);
         t('covenant binding set', tx1.outputs[0].covenant !== undefined);
+
+        // Guards (audit S21)
+        const thr = f => { try { f(); return null; } catch (e) { return e.message; } };
+        t('genesis: missing output rejected', /no output/.test(thr(() => setGenesisCovenant(mk(), 5, 0))));
+        t('genesis: missing input rejected', /no input/.test(thr(() => setGenesisCovenant(mk(), 0, 3))));
+        const two = () => buildTx(
+            [{ txId: '34'.repeat(32), index: 0, amount: 1000000000n, spk: '20' + '56'.repeat(32) + 'ac' }],
+            [{ amount: 100000000n, script: 'aa20' + '78'.repeat(32) + '87' }, { amount: 100000000n, script: 'aa20' + '79'.repeat(32) + '87' }]
+        );
+        const txT = two(); setGenesisCovenant(txT, 0, 0);
+        t('genesis: second output on the same input refused', /multi-output/.test(thr(() => setGenesisCovenant(txT, 1, 0))));
+        const txS = mk(); txS.inputs[0].sigScript = '00';
+        t('genesis: binding after signing refused', /already signed/.test(thr(() => setGenesisCovenant(txS, 0, 0))));
+        t('continuation: binding after signing refused', /already signed/.test(thr(() => setContinuationCovenant(txS, 0, 0, c1))));
+        t('continuation: malformed covenant id refused', /64 hex/.test(thr(() => setContinuationCovenant(mk(), 0, 0, 'ab'.repeat(31)))));
+        const txC = mk(); setContinuationCovenant(txC, 0, 0, c1);
+        t('continuation: valid id binds', txC.outputs[0].covenant.covenantId === c1 && txC.outputs[0].covenant.authorizingInput === 0);
     }
     // Script helpers
     {

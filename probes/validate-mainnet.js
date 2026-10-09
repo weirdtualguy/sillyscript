@@ -6,7 +6,7 @@ const { kaspaSighashV1 } = require('../kaspa-sighash');
 
 const GENESIS_TXID = 'f6ebb717e04384770a833e87c8c7b5c3b8ff57adf4c1cda0f6c1aa097af2dc55';
 const EXPECTED_COV_ID = '63fccd996d17aaf8e7dcfe0f19c0be253c6789f3b7b41044ac0df54a3f6ae6cb';
-const WALLET_PUBKEY = '33fe25d181460cec565e08ceef80761c2cb990d595f43193a0c76237b0d9cc68';
+// pubkey comes from the spent UTXO script, never a constant (pins 3.5, audit S24)
 const REST = 'https://api.kaspa.org';
 
 async function fetchTx(txid) {
@@ -104,16 +104,15 @@ async function main() {
             console.log('  hashType:', hashType);
 
             try {
-                const { schnorr } = require('@noble/secp256k1');
-                const pubkey = Buffer.from(WALLET_PUBKEY, 'hex');
+                const { schnorr } = require('@noble/curves/secp256k1');
+                const pubkey = require('../kaspa-crypto').extractPubkeyFromP2PK(Buffer.from(utxoScript, 'hex'));
                 const valid = schnorr.verify(sig64, sighash, pubkey);
                 console.log('  schnorr verify:', valid ? '*** PASS ***' : '*** FAIL ***');
                 if (!valid) {
-                    console.log('  note: noble/secp256k1 schnorr uses SHA-256 for the challenge;');
-                    console.log('  Kaspa may use BLAKE2b — if FAIL, the sig scheme differs');
+                    process.exitCode = 1;
                 }
             } catch (e) {
-                console.log('  schnorr verify error:', e.message);
+                console.log('  schnorr verify error:', e.message); process.exitCode = 1;
             }
         } else {
             console.log('  unexpected sigscript format, length:', sigScript.length);
