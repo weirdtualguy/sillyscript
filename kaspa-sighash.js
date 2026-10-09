@@ -167,6 +167,27 @@ if (require.main === module && process.argv.includes('--test')) {
         t('uppercase covenantId hashes identically', kaspaSighashV1(dummyInputs, [{ ...covOutputs[0], covenant: { authorizingInput: 0, covenantId: 'AB'.repeat(32) } }], 0).equals(hash2));
     }
 
+    // Chain-anchored: the recomputed sighash must verify the ON-CHAIN signature of mainnet genesis f6ebb717 (audit S27)
+    {
+        const fs = require('fs'), path = require('path');
+        const fp = path.join(__dirname, 'test-vectors', 'mainnet-genesis-f6ebb717.json');
+        const present = fs.existsSync(fp);
+        t('mainnet vector fixture present (probes/dump-vector.js writes it)', present);
+        if (present) {
+            const v = JSON.parse(fs.readFileSync(fp, 'utf8'));
+            const { schnorr } = require('@noble/curves/secp256k1');
+            const vin = v.inputs.map(i => ({ txId: i.txId, index: i.index, sequence: BigInt(i.sequence), spk: i.spk, amount: BigInt(i.amount) }));
+            const vout = v.outputs.map(o => ({ amount: BigInt(o.amount), scriptPublicKey: o.scriptPublicKey, ...(o.covenant ? { covenant: o.covenant } : {}) }));
+            const h = kaspaSighashV1(vin, vout, 0);
+            const sig = Buffer.from(v.signatureHex, 'hex'), pk = Buffer.from(v.pubkeyHex, 'hex');
+            t('mainnet genesis: sighash equals the frozen value', h.toString('hex') === v.sighashHex);
+            t('mainnet genesis: on-chain signature verifies', schnorr.verify(sig, h, pk));
+            const bumped = vout.map((o, i) => i === 0 ? { ...o, amount: o.amount + 1n } : o);
+            t('mainnet genesis: 1 sompi changes the sighash and breaks the signature', schnorr.verify(sig, kaspaSighashV1(vin, bumped, 0), pk) === false);
+            t('mainnet genesis: pubkey is the one in the spent UTXO script', require('./kaspa-crypto').extractPubkeyFromP2PK(Buffer.from(vin[0].spk, 'hex')).toString('hex') === v.pubkeyHex);
+        }
+    }
+
     // Different input index changes the hash (signing different input)
     const inputs2 = [...dummyInputs, { ...dummyInputs[0], index: 1 }];
     const hash3 = kaspaSighashV1(inputs2, dummyOutputs, 1);

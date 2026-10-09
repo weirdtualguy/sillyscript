@@ -63,12 +63,12 @@ they do.
 | `silly-typegen.js` | 17 | TypeScript declaration generator: typed state, entry args, tuples, Contract classes. |
 | `sil-abi.js` | — | Artifact loader; derives and asserts dispatch tags; verifies template hashes; decodes state. Verified via consumers and silly check. |
 | `sil-encoder.js` | 51 | Sigscripts from ABI params; minimal arg pushes, explicit state pushes, columnar struct arrays. |
-| `kaspa-crypto.js` | 26 | CashAddr-variant bech32; KIP-20 covenant ID; P2SH/P2PK script public keys. |
-| `kaspa-sighash.js` | 9 | v1 sighash: keyed blake2b over the 16-field preimage with covenant bindings. |
+| `kaspa-crypto.js` | 29 | CashAddr-variant bech32; KIP-20 covenant ID; P2SH/P2PK script public keys. |
+| `kaspa-sighash.js` | 14 | v1 sighash: keyed blake2b over the 16-field preimage with covenant bindings. |
 | `kaspa-tx.js` | 40 | Tx assembly (auto computeBudget 10/60), P2PK and covenant signing, mass/fee estimation. |
 | `kaspa-wrpc.js` | 32 | wRPC broadcast: gauntlet-B4 schema, BigInt serialization, rotation on error and rejection. |
 
-**Total: 286 tests across 10 self-test modules** — `npm test` prints ten
+**Total: 294 tests across 10 self-test modules** — `npm test` prints ten
 `ALL n PASS` lines; their sum is the contract.
 
 ## The Scaffold — `silly init <name>`
@@ -92,6 +92,8 @@ probe.
 | `probes/verify-tags.js` | Derives every entry's dispatch tag from artifact params; verifies template hashes. |
 | `probes/validate-mainnet.js` | Fetches mainnet genesis via REST, computes the covenant ID, checks it against the chain. |
 | `probes/verify-schnorr-fixed.js` | Reconstructs the sighash from mainnet genesis data, verifies the schnorr signature. |
+| `probes/dump-vector.js` | Freezes a chain-verified mainnet genesis into `test-vectors/`; writes nothing unless the covenant ID recomputes and the on-chain signature verifies. |
+| `test-vectors/mainnet-genesis-f6ebb717.json` | Frozen chain data: the sighash and covenant-ID anchors asserted by the kaspa-sighash and kaspa-crypto self-tests. |
 | `probes/gauntlet-v13.js` | Four-phase integration: load, sigscript build, mock tx assembly, verification. |
 
 ## The Dependency Footprint

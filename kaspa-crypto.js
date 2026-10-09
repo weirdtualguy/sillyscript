@@ -194,6 +194,18 @@ if (require.main === module && process.argv.includes('--test')) {
     const chainSpk = Buffer.from('aa2089c2bdd88645cc4c1505bb8a4122ba00a855a4a538852bc011facbf9fa55811387', 'hex');
     t('bech32 matches chain address (counter genesis bd4085b1)', encodeAddress('kaspatest', 8, chainSpk.subarray(2, 34)) === 'kaspatest:pzyu90wcsezucnq4qkac5sfzhgq2s4dy55ug227qz8avh7062kq3xmcqz9dcu');
   }
+  { // chain-anchored covenant ID: mainnet genesis f6ebb717 (audit S27)
+    const fsx = require('fs'), pathx = require('path');
+    const fp = pathx.join(__dirname, 'test-vectors', 'mainnet-genesis-f6ebb717.json');
+    const present = fsx.existsSync(fp);
+    t('mainnet vector fixture present (probes/dump-vector.js writes it)', present);
+    if (present) {
+      const v = JSON.parse(fsx.readFileSync(fp, 'utf8')).covenant;
+      const vouts = v.outputs.map(o => ({ index: o.index, value: BigInt(o.value), scriptVersion: 0, script: Buffer.from(o.script, 'hex') }));
+      t('covenantId matches the mainnet chain value', covenantId(Buffer.from(v.authPrevTxId, 'hex'), v.authPrevIndex, vouts).toString('hex') === v.expectedId);
+      t('covenantId with a reversed txid does not match (txid bytes are used as-is)', covenantId(Buffer.from(v.authPrevTxId, 'hex').reverse(), v.authPrevIndex, vouts).toString('hex') !== v.expectedId);
+    }
+  }
   { // keyed hashes
     t('keyed blake2b dkLen=32', keyedBlake2b(Buffer.from('test'), 'CovenantID').length === 32);
     t('keys differ', !keyedBlake2b(Buffer.from('test'), 'CovenantID').equals(keyedBlake2b(Buffer.from('test'), 'TransactionSigningHash')));

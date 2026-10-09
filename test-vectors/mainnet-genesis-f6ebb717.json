@@ -1,0 +1,45 @@
+{
+  "name": "mainnet-genesis-f6ebb717",
+  "network": "mainnet",
+  "txid": "f6ebb717e04384770a833e87c8c7b5c3b8ff57adf4c1cda0f6c1aa097af2dc55",
+  "sighashHex": "b8cf55a33e45835f55c382e9b09a035de15f9204d899402485942f078f19711a",
+  "signatureHex": "45a58a733c4a5751a5e60bb7b4c8033da16fc137ef138ebd72b366e32af95126ef5af11a31335e7fa8e7d35f6003c6f24e1edcd1789790cdadbdfa3106f4da09",
+  "pubkeyHex": "25aafe02662998a62b4b4c1a887005ea8c604705c0a3cb29c3f63dfb85332f8b",
+  "hashType": 1,
+  "covenant": {
+    "expectedId": "63fccd996d17aaf8e7dcfe0f19c0be253c6789f3b7b41044ac0df54a3f6ae6cb",
+    "authPrevTxId": "07d7897bbef132a241ec1428dc2a571cb93de578b1ce972acadbf618c99589da",
+    "authPrevIndex": 0,
+    "outputs": [
+      {
+        "index": 0,
+        "value": "100000000",
+        "script": "aa2005b5b9ea235641750b10d73c294b63c52a609bf65dcdd5485e65282c23ffc17687"
+      }
+    ]
+  },
+  "inputs": [
+    {
+      "txId": "07d7897bbef132a241ec1428dc2a571cb93de578b1ce972acadbf618c99589da",
+      "index": 0,
+      "sequence": "0",
+      "spk": "2025aafe02662998a62b4b4c1a887005ea8c604705c0a3cb29c3f63dfb85332f8bac",
+      "amount": "1000000000"
+    }
+  ],
+  "outputs": [
+    {
+      "amount": "100000000",
+      "scriptPublicKey": "aa2005b5b9ea235641750b10d73c294b63c52a609bf65dcdd5485e65282c23ffc17687",
+      "covenant": {
+        "authorizingInput": 0,
+        "covenantId": "63fccd996d17aaf8e7dcfe0f19c0be253c6789f3b7b41044ac0df54a3f6ae6cb"
+      }
+    },
+    {
+      "amount": "897000000",
+      "scriptPublicKey": "2025aafe02662998a62b4b4c1a887005ea8c604705c0a3cb29c3f63dfb85332f8bac",
+      "covenant": null
+    }
+  ]
+}
