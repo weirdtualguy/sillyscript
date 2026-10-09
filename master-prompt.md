@@ -15,7 +15,7 @@ If any file is missing, STOP and report. Do not proceed from memory.
 
     cd ~/sillyscript
     npm test 2>&1 | grep -E 'ALL [0-9]+ PASS|FAIL'
-    # expect: 9 'ALL n PASS' module lines and zero FAIL lines.
+    # expect: one 'ALL n PASS' line per test module (Files-Manifest.md lists them) and zero FAIL lines.
     # Per-module counts are owned by Files-Manifest.md - this file
     # deliberately carries none (counts drift, anchors do not).
 
@@ -25,8 +25,8 @@ unverified ground.
 
 ## Ten rules that prevent catastrophic failure
 
-Each rule exists because violating it caused a real incident. Full rationale:
-SillyBible §0.
+Each rule exists because violating it caused a real incident. Rationale lives in
+SillyBible §0 (process rules) and platform-pins.md (platform facts).
 
 1. **Derive, never clone.** Dispatch tags, arg order, state encoding — derive
    from the current artifact at runtime. Never copy from a previous version.

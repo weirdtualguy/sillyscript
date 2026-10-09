@@ -105,7 +105,8 @@ async function main() {
             process.exit(1);
         }
         console.log('WARNING: fee ' + actualFee + ' sompi is >2x intent ' + feeIntent + ' - change burning as fee (pins 11/S7). Proceeding on ' + net + '.');
-    }    console.log('Covenant value returned to owner: ' + covUtxo.amount + ' sompi');
+    }
+    console.log('Covenant value returned to owner: ' + covUtxo.amount + ' sompi');
 
     // ── 4. Sign ──
     console.log('\n-- Signing --');

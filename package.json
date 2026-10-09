@@ -23,6 +23,7 @@
   ],
   "author": "",
   "license": "ISC",
+  "engines": { "node": ">=18" },
   "type": "commonjs",
   "dependencies": {
     "@noble/curves": "^1.6.0",

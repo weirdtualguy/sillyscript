@@ -15,7 +15,7 @@
 // [REF c7d17a1] template_hash = blake3(ser8le(len prefix)|prefix|ser8le(len suffix)|suffix)
 // [REF c7d17a1] bytecode layout: TOALTSTACK | one explicit push per state
 //   field | FROMALTSTACK | dispatch cascade (DUP <tag> EQUAL IF DROP body ELSE ... )
-// [REF argent codec] P2SH spk = 00 00 OP_BLAKE2B 0x20 blake2b32(redeem) OP_EQUAL (37 B)
+// [REF argent codec] P2SH spk = 00 00 OP_BLAKE2B 0x20 blake2b32(redeem) OP_EQUAL (37 B with the 2-byte version prefix; the 35 B aa20<hash>87 form is what REST and kaspa-crypto.js use)
 //
 // VERIFIED: 24/24 dispatch tags + 6/6 template hashes across 6 production
 // artifacts: pixel-token-abi, pixel-minter-abi (struct-bearing),

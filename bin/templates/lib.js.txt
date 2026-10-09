@@ -34,6 +34,9 @@ function loadEnv() {
         if (eq < 0) continue;
         env[t.slice(0, eq).trim()] = t.slice(eq + 1).trim();
     }
+    // The library reads PC_TN10_WRPC / PC_MAINNET_WRPC from process.env: surface those two .env values (never keys)
+    for (const k of ['PC_TN10_WRPC', 'PC_MAINNET_WRPC'])
+        if (env[k] && process.env[k] === undefined) process.env[k] = env[k];
     return env;
 }
 

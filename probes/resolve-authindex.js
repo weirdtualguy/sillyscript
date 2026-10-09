@@ -22,6 +22,7 @@ const DEFAULT_GENESISES = [
 (async () => {
   const txids = process.argv.slice(2).length ? process.argv.slice(2) : DEFAULT_GENESISES;
   const provider = new KaspaRestProvider(process.env.PC_NET || 'testnet'); // PC_NET=mainnet for mainnet txids
+  const hops = {}; // continuation tracing: txid -> hops from the first requested tx
 
   for (const txid of txids) {
     console.log('\n=== genesis', txid);
@@ -51,7 +52,12 @@ const DEFAULT_GENESISES = [
       if (group.length === 0) { console.log('  no covenant_id on any output'); continue; }
       const contIn = ins.filter(x => x.covenant_id !== undefined && x.covenant_id !== null);
       if (contIn.length > 0) {
-        console.log('  CONTINUATION: ' + contIn.length + ' input(s) already carry a covenant_id; the genesis preimage does not apply, skipping');
+        const parent = contIn[0].previous_outpoint_hash;
+        hops[parent] = (hops[txid] || 0) + 1;
+        if (parent && hops[parent] <= 200 && txids.indexOf(parent) < 0) {
+          console.log('  CONTINUATION: tracing parent ' + parent + ' (hop ' + hops[parent] + ')');
+          txids.push(parent);
+        } else console.log('  CONTINUATION: not tracing further');
         continue;
       }
 

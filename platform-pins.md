@@ -232,8 +232,8 @@ A 144-variant brute force of standard combos FAILS. Do not guess; use kaspa-cryp
     covenant_id = keyed_blake2b(key='CovenantID', 32B out) over:
         authTxid[32B]         <- REST txid hex-decoded AS-IS (no reversal)
   + u32le(authIndex)   <- authorizing input's PREVIOUS OUTPOINT index [PIN 2026-10-07,
-     DISCRIMINATING testnet-10 vectors bd4085b1…→b324dc5b… and 60579a71…→230551a6…
-     (authInputPos=0, prevOutpointIndex=2); probe probes/resolve-authindex.js;
+     testnet-10 vectors (exclude "position"; see caveat) bd4085b1…→b324dc5b… and 60579a71…→230551a6…
+     (authInputPos=0, prevOutpointIndex=2; both also have 2 inputs and funding index 2, so a third vector with an index outside {0,2} is still wanted [OPEN, audit 12]); probe probes/resolve-authindex.js (traces continuations back to their genesis);
      code-corroborated by setGenesisCovenant + validate-mainnet.js] NOT the
      input's POSITION — the position is the binding field covenant_authorizing_input
      (4.1), which only LOCATES the input in tx.inputs.
@@ -436,6 +436,10 @@ Sort by OLDEST DAA score first (deepest confirmation) to avoid orphan-window
 rejections. REST /utxos LAGS the mempool (ghost UTXOs). Always include
 sequence: 0 in hand-built input objects.
 
+[audit 2026-10-08] kaspa-tx.js pickUtxosSafe follows this rule (oldest first; static read).
+The production code described in 9.9 sorts largest-first. The two policies are
+unreconciled: [TODO-verify] which is right for storage mass, then keep exactly one.
+
 ### 4.7 Confirmation gating [PIN]
 
 Public nodes do NOT chain mempool — children of unconfirmed parents are orphans
@@ -488,7 +492,7 @@ Broken on Termux. Use pure-JS: @noble/hashes, @noble/curves, fetch, ws.
 
 ---
 
-## 6. Incident Registry (kit-era session - historical; current registry: 11)
+## 6. Incident Registry (kit-era session - historical; the live S-numbered registry is in section 11)
 
 | # | Incident | Root cause | Law |
 |---|---|---|---|
@@ -574,6 +578,9 @@ Rationale: storage mass scales ~inversely with value, so larger UTXOs cost
 LESS mass to spend. The orphan-window concern is handled by the confirmation
 gate (waitForConfirmation), not by UTXO selection order.
 
+Scope: this describes the Reliks production code. sillyscript's pickUtxosSafe sorts
+OLDEST first per 4.6 (audit 2026-10-08, static). Unreconciled; see 4.6.
+
 This is itself a documentation-drift incident: the F-05 comment was never
 updated when the sort order changed. One topic, one place (dotk rule).
 
@@ -624,9 +631,10 @@ Kaspa sequence numbers are u64. To DISABLE relative sequence locks, set bit 63
 IT DOES NOT — 0xFFFFFFFF in u64 = 4294967295, which does NOT have bit 63 set,
 and is interpreted as a relative lock of ~4B blocks.
 
-[CRITICAL] JavaScript Number cannot represent 2^63. Store sequence as BigInt.
+[CRITICAL] Never carry a u64 sequence as a JS Number. 2^63 itself is exactly representable, but its decimal
+serialization is not, and 2^63+1 cannot be held at all. Store sequence as BigInt.
 JSON serialization must handle BigInt explicitly (serializeBigInt pattern in
-kaspa-wrpc.js). A JS Number rounds 9223372036854775808 to 9223372036854776000.
+kaspa-wrpc.js). JSON.stringify(2**63) prints 9223372036854776000, not 9223372036854775808 [ran 2026-10-08].
 
 ### 10.3 Testnet REST UTXO schema is nested [PIN gauntlet-B1]
 
@@ -724,6 +732,8 @@ sillyscript's pure-JS path is already proven.
 | S22 | kaspa-sighash hex helper silently truncated bad hex (63-char txId, non-hex, odd length), so a different message than intended could be signed | [static: Buffer.from(str, "hex") truncates at the first bad character] | every hex field is validated for type, parity and charset, and ids for length, before hashing |
 | S23 | silly-compile built a shell command by string interpolation: paths with spaces or metacharacters broke or injected | [static] | external tools are invoked with an argv array, never through a shell |
 | S24 | probes/validate-mainnet.js imported a library the package does not depend on, verified against a hardcoded key (incident #1 class), swallowed its own error and exited 0; probes/resolve-authindex.js dropped covenant_authorizing_input in its own .map() and judged continuation txs as failed geneses | [ran on Termux 2026-10-08: Cannot find module @noble/secp256k1; covenant_authorizing_input printed undefined; c7fc689f verdict NEITHER] | a probe is code: it fails non-zero on any unverified step, derives keys from chain data, and classifies its input before judging it |
+| S25 | PC_TN10_WRPC / PC_MAINNET_WRPC set in the scaffold .env were never exported to process.env, so the library never saw them; mainnet endpoints were also read from two variables at two different times (MAINNET_WRPC at module load, PC_MAINNET_WRPC at construct) | [static: no process.env write in templates or silly.js; scripts run plain node] | a config key documented for a file must be read by the code that consumes it; one variable, read at construct time, comma-separated list |
+| S26 | the only chain evidence for the covenant-ID auth index was two testnet vectors that share funding index 2 and 2 inputs; the probe skipped continuation txs instead of walking back to their genesis | [ran 2026-10-08: c7fc689f is a continuation; the probe now traces parents] | evidence for a pin is graded by the confounders it excludes; tooling walks to the evidence instead of stopping at the first mismatch |
 
 Session closeout 2026-10-07: the machine-proposed entries above (3.2 authIndex amendment,
 4.1 testnet-10 retrieval addendum, S8, S9) were ratified by the operator after evidence

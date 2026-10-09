@@ -1339,8 +1339,8 @@ e1f2f6a8... (bricked close - pins 3.3b corollary).
 
 Known gaps: DECL lowering internals summarized from one compiler era -
 re-diff on upgrade; 1.4 composite-sizing quantified on two contract
-families (v11, v13); 7.1 stage gates predate the graduated mainnet-first
-strategy (see SAFETY.md). Closed Oct 5: the P0 genesis-bridge gap (P0
+families (v11, v13); 7.1 stage 4 (REHEARSE) already cites SAFETY.md's mainnet-first
+strategy; the other stages were not re-audited against it. Closed Oct 5: the P0 genesis-bridge gap (P0
 now in §6, twice lifecycle-proven via the scaffold); verification gates
 are count-free with Files-Manifest.md owning all counts.
 

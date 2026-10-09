@@ -22,7 +22,7 @@ const { KaspaRestProvider } = require('./provider');
 
 // wRPC endpoints — from the kit's proven config
 const WRPC_ENDPOINTS = {
-    mainnet: (process.env.MAINNET_WRPC || '').split(',').map(s => s.trim()).filter(Boolean),
+    mainnet: [], // no public default: set PC_MAINNET_WRPC (comma-separated list allowed)
     testnet: [
         'wss://electron-10.kaspa.stream/kaspa/testnet-10/wrpc/json',
         'wss://vector-10.kaspa.green/kaspa/testnet-10/wrpc/json',
@@ -156,9 +156,8 @@ class KaspaWrpcProvider extends KaspaRestProvider {
 
         // Env vars for custom nodes
         const envVar = this.networkName === 'mainnet' ? 'PC_MAINNET_WRPC' : 'PC_TN10_WRPC';
-        if (process.env[envVar]) {
-            endpoints.push(process.env[envVar]);
-        }
+        for (const ep of String(process.env[envVar] || '').split(',').map(s => s.trim()).filter(Boolean))
+            if (endpoints.includes(ep) === false) endpoints.push(ep);
 
         // Known-good public endpoints (from kit's proven config)
         const defaults = WRPC_ENDPOINTS[this.networkName] || [];
@@ -294,6 +293,19 @@ if (process.argv.includes('--test')) {
         t('submit frame honors allowOrphan=false', fr.params.allowOrphan === false);
         t('submit frame defaults allowOrphan=true', buildSubmitRequest({ x: 1 }).params.allowOrphan === true);
         t('submit frame shape', fr.id === 1 && fr.method === 'submitTransaction' && fr.params.transaction.x === 1);
+    }
+
+    // PC_*_WRPC resolution: one variable, comma list, read at construct time (audit S25)
+    {
+        const saved = process.env.PC_MAINNET_WRPC;
+        process.env.PC_MAINNET_WRPC = ' wss://a.example/w , wss://b.example/w ';
+        const mp = new KaspaWrpcProvider('mainnet');
+        t('PC_MAINNET_WRPC comma list parsed in order', mp.wrpcEndpoints.length === 2 && mp.wrpcEndpoints[0] === 'wss://a.example/w' && mp.wrpcEndpoints[1] === 'wss://b.example/w');
+        delete process.env.PC_MAINNET_WRPC;
+        t('mainnet without PC_MAINNET_WRPC has no endpoints (broadcast fails closed)', new KaspaWrpcProvider('mainnet').wrpcEndpoints.length === 0);
+        if (saved === undefined) delete process.env.PC_MAINNET_WRPC; else process.env.PC_MAINNET_WRPC = saved;
+        const childLen = require('child_process').execFileSync(process.execPath, ['-e', "process.env.MAINNET_WRPC = 'wss://legacy.example/w'; console.log(require('./kaspa-wrpc').WRPC_ENDPOINTS.mainnet.length);"], { cwd: __dirname, encoding: 'utf8' }).trim();
+        t('legacy MAINNET_WRPC is no longer read at module load', childLen === '0');
     }
 
     // Endpoints

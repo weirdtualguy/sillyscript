@@ -1,5 +1,6 @@
 node_modules/
 *.bak*
+*.zip
 
 # session artifacts & one-shot patchers (untracked — delete after use)
 integrate-*.js
