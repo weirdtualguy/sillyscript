@@ -10,6 +10,14 @@ const NETWORKS = {
   testnet: { hrp: 'kaspatest', rest: 'https://api-tn10.kaspa.org', dust: 100000000n },
 };
 
+// REST carries sequence as a JSON number: refuse what it cannot carry exactly instead of rounding (audit S19)
+function restSequence(seq) {
+  const s = seq === undefined ? 0n : BigInt(seq);
+  if (s < 0n || s > BigInt(Number.MAX_SAFE_INTEGER))
+    throw new Error('toRestFormat: sequence ' + s + ' cannot be carried exactly in a REST JSON number; submit via wRPC');
+  return Number(s);
+}
+
 /**
  * Standard REST transaction serializer
  */
@@ -25,7 +33,7 @@ function toRestFormat(tx, { allowOrphan = false } = {}) {
       inputs: (txObj.inputs || []).map(inp => ({
         previousOutpoint: inp.previousOutpoint || { transactionId: inp.txId, index: inp.index },
         signatureScript: inp.sigScript || inp.signatureScript || '',
-        sequence: inp.sequence !== undefined ? Number(inp.sequence) : 0,
+        sequence: restSequence(inp.sequence),
         sigOpCount: inp.sigOpCount || 0,
         ...(inp.computeBudget !== undefined ? { computeBudget: inp.computeBudget } : {}),
       })),
@@ -234,10 +242,12 @@ class KaspaRestProvider extends Provider {
     throw new Error(`KaspaRestProvider: tx ${txId} not confirmed within ${timeout}ms`);
   }
 
-  async submitWithFeeDiscovery(buildFn, { maxAttempts = 5, margin = 1.1, initialFee = 1000000n, allowOrphan = false } = {}) {
+  async submitWithFeeDiscovery(buildFn, { maxAttempts = 5, margin = 1.1, initialFee = 1000000n, maxFee = 500000000n, allowOrphan = false } = {}) {
     let fee = initialFee;
     let lastError = null;
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      if (fee > maxFee)
+        throw new Error('KaspaRestProvider: fee ' + fee + ' sompi exceeds maxFee ' + maxFee + ' (refusing to overpay)');
       const tx = buildFn(fee);
       try {
         const result = await this.broadcast(tx, { allowOrphan });
@@ -245,7 +255,7 @@ class KaspaRestProvider extends Provider {
       } catch (err) {
         lastError = err;
         const msg = err.responseText || err.message || '';
-        const match = msg.match(/required (?:fee|amount) (?:of )?(\d+)/i);
+        const match = msg.match(FEE_REGEX);
         if (match) {
           const required = BigInt(match[1]);
           fee = (required * BigInt(Math.round(margin * 100))) / 100n + 1n;
@@ -382,12 +392,16 @@ class MockProvider extends Provider {
   }
 }
 
+// Single definition of the node fee-rejection parser (kaspa-tx.js re-exports it)
+const FEE_REGEX = /required (?:fee|amount) (?:of )?(\d+)/i;
+
 module.exports = {
   Provider,
   KaspaRestProvider,
   MockProvider,
   toRestFormat,
   NETWORKS,
+  FEE_REGEX,
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -489,6 +503,36 @@ if (require.main === module && process.argv.includes('--test')) {
       t('timeout reports the last underlying error', /last error: boom/.test(msgD));
     }
 
+    // toRestFormat refuses sequences REST cannot carry exactly (audit S19)
+    {
+      const seqTx = s => ({ inputs: [{ txId: 'bb'.repeat(32), index: 1, sigScript: '00', sequence: s }], outputs: [] });
+      const thr = f => { try { f(); return null; } catch (e) { return e.message; } };
+      t('REST sequence 0n -> 0', toRestFormat(seqTx(0n)).transaction.inputs[0].sequence === 0);
+      t('REST sequence Number 5 -> 5', toRestFormat(seqTx(5)).transaction.inputs[0].sequence === 5);
+      const m = thr(() => toRestFormat(seqTx(0x8000000000000000n)));
+      t('REST sequence 2^63 rejected, not rounded', m !== null && /wRPC/.test(m));
+      t('REST sequence 1.5 rejected', thr(() => toRestFormat(seqTx(1.5))) !== null);
+    }
+
+    // Fee discovery has a ceiling; one shared FEE_REGEX (audit S20)
+    {
+      const p = new KaspaRestProvider('testnet', { fetch: async () => ({ status: 200, ok: true, json: async () => ({}) }) });
+      let built = 0;
+      const thr = async f => { try { await f(); return null; } catch (e) { return e.message; } };
+      p.broadcast = async () => { throw new Error('required fee of 99999999999 sompi'); };
+      const m1 = await thr(() => p.submitWithFeeDiscovery(() => { built++; return {}; }, { maxAttempts: 3 }));
+      t('fee discovery refuses a node-dictated fee above maxFee', m1 !== null && /exceeds maxFee/.test(m1));
+      built = 0;
+      const m2 = await thr(() => p.submitWithFeeDiscovery(() => { built++; return {}; }, { initialFee: 2000n, maxFee: 1000n }));
+      t('fee discovery refuses an initial fee above maxFee before building', m2 !== null && built === 0);
+      let n = 0;
+      p.broadcast = async () => { if (n++ === 0) throw new Error('required fee of 2000000'); return { txId: 'ee'.repeat(32) }; };
+      const r = await p.submitWithFeeDiscovery(() => ({}), {});
+      t('fee discovery still converges below the ceiling', r.fee === 2200001n && r.attempts === 2);
+      t('FEE_REGEX parses required fee of N', ('Transaction rejected: required fee of 4490000 sompi'.match(FEE_REGEX) || [])[1] === '4490000');
+      t('FEE_REGEX parses required amount N', ('required amount 123'.match(FEE_REGEX) || [])[1] === '123');
+      t('FEE_REGEX ignores non-fee errors', 'some other error'.match(FEE_REGEX) === null);
+    }
     // Multi-step mock flow: broadcast creates output UTXOs (fix #7)
     {
       const mock2 = new MockProvider('mainnet');

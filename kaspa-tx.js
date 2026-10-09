@@ -9,7 +9,7 @@ const { buildCompleteSigScript } = require('./sil-encoder');
 
 // Script formats owned by kaspa-crypto.js (single source of truth)
 
-const { KaspaRestProvider, NETWORKS, toRestFormat } = require('./provider');
+const { KaspaRestProvider, NETWORKS, toRestFormat, FEE_REGEX } = require('./provider');
 
 let defaultProvider = null;
 function getDefaultProvider() {
@@ -25,7 +25,7 @@ function resolveProvider(opts = {}) {
     return getDefaultProvider();
 }
 
-const FEE_REGEX = /required fee of (\d+)/i;
+// FEE_REGEX: single definition in provider.js (audit S20)
 const RELAY_FLOOR_RATE = 100; // sompi per gram
 const GRAMS_PER_COMPUTE_BUDGET_UNIT = 100;
 const SEQUENCE_DISABLE = 0x8000000000000000n; // Bit 63 disables sequence locks
@@ -287,6 +287,7 @@ if (require.main === module && process.argv.includes('--test')) {
     {
         const m1 = 'Transaction rejected: required fee of 4490000 sompi'.match(FEE_REGEX);
         t('fee regex extracts', m1 && m1[1] === '4490000');
+        t('FEE_REGEX is the provider regex (single source)', FEE_REGEX === require('./provider').FEE_REGEX);
         t('fee regex rejects non-fee', !'some other error'.match(FEE_REGEX));
     }
     // P2PK sign + verify round-trip

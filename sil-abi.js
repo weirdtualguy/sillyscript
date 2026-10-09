@@ -141,7 +141,11 @@ class ContractView {
     this.structs = structs;
 
     // --- bytecode & state span ---
-    this.bytecode = Buffer.from(c.compiled.bytecode);
+    const raw = c.compiled.bytecode;
+    if ((raw instanceof Uint8Array) === false &&
+        (Array.isArray(raw) === false || raw.every(b => Number.isInteger(b) && b >= 0 && b <= 255) === false))
+      throw new Error(name + ': compiled.bytecode must be an array of bytes 0-255');
+    this.bytecode = Buffer.from(raw);
     const sp = c.compiled.state_span;
     if (sp.offset + sp.len > this.bytecode.length)
       throw new Error(name + ': state span exceeds bytecode');
@@ -263,6 +267,11 @@ class ContractView {
       case 'fixed_bytes':
         if (data.length !== t.len) throw new Error(this.name + '.' + name + ': expected ' + t.len + 'B, got ' + data.length);
         return data.toString('hex');
+      case 'pubkey': case 'sig': case 'datasig': {
+        const want = this.fixedLen(t);
+        if (data.length !== want) throw new Error(this.name + '.' + name + ': ' + t.kind + ' push is ' + data.length + 'B, expected ' + want);
+        return data.toString('hex');
+      }
       case 'bytes': return data.toString('hex');
       case 'string': return data.toString('utf8');
       case 'fixed_array': {

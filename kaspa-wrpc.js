@@ -86,7 +86,12 @@ function toWrpcFormat(tx) {
 // Proven wRPC broadcast with endpoint rotation [PIN — from kit]
 // ─────────────────────────────────────────────────────────────────────────────
 
-async function wrpcBroadcast(wrpcUrls, rpcTx, { timeout = 15000 } = {}) {
+// The submitTransaction frame. allowOrphan is strict: only true allows orphans (audit S20)
+function buildSubmitRequest(rpcTx, allowOrphan = true) {
+    return { id: 1, method: 'submitTransaction', params: { transaction: rpcTx, allowOrphan: allowOrphan === true } };
+}
+
+async function wrpcBroadcast(wrpcUrls, rpcTx, { timeout = 15000, allowOrphan = true } = {}) {
     let WsCtor;
     try { WsCtor = require('ws'); }
     catch (e) { throw new Error('ws package not installed: npm i ws'); }
@@ -103,11 +108,7 @@ async function wrpcBroadcast(wrpcUrls, rpcTx, { timeout = 15000 } = {}) {
                 ws.terminate();
                 tryUrl(k + 1);
             }, timeout);
-            ws.on('open', () => ws.send(JSON.stringify({
-                id: 1,
-                method: 'submitTransaction',
-                params: { transaction: rpcTx, allowOrphan: true },
-            })));
+            ws.on('open', () => ws.send(JSON.stringify(buildSubmitRequest(rpcTx, allowOrphan))));
             ws.on('message', d => {
                 const s = d.toString();
                 clearTimeout(t);
@@ -175,6 +176,7 @@ class KaspaWrpcProvider extends KaspaRestProvider {
 
         const result = await wrpcBroadcast(this.wrpcEndpoints, wrpcTxObj, {
             timeout: this.wrpcTimeout,
+            allowOrphan,
         });
 
         if (!result.txId) {
@@ -202,7 +204,7 @@ class KaspaWrpcProvider extends KaspaRestProvider {
     }
 }
 
-module.exports = { KaspaWrpcProvider, toWrpcFormat, serializeWrpcTx, serializeBigInt, WRPC_ENDPOINTS, wrpcBroadcast, getWebSocket };
+module.exports = { KaspaWrpcProvider, toWrpcFormat, serializeWrpcTx, serializeBigInt, WRPC_ENDPOINTS, wrpcBroadcast, getWebSocket, buildSubmitRequest };
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Self-test
@@ -284,6 +286,14 @@ if (process.argv.includes('--test')) {
         };
         const parsed = JSON.parse(serializeWrpcTx(tx));
         t('SEQUENCE_DISABLE survives serialization', parsed.inputs[0].sequence === 9223372036854775808);
+    }
+
+    // submitTransaction frame: allowOrphan is honored and strict (audit S20)
+    {
+        const fr = buildSubmitRequest({ x: 1 }, false);
+        t('submit frame honors allowOrphan=false', fr.params.allowOrphan === false);
+        t('submit frame defaults allowOrphan=true', buildSubmitRequest({ x: 1 }).params.allowOrphan === true);
+        t('submit frame shape', fr.id === 1 && fr.method === 'submitTransaction' && fr.params.transaction.x === 1);
     }
 
     // Endpoints

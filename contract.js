@@ -322,6 +322,23 @@ if (require.main === module && process.argv.includes('--test')) {
       t('loadArtifact(null) rejected', nullRejected);
     }
 
+    // Decode covers every fixed kind the encoder encodes; artifact bytes are validated (audit S17)
+    {
+      const v = contract.view;
+      t('decodeField pubkey -> hex', v.decodeField('k', { kind: 'pubkey' }, Buffer.alloc(32, 1)) === '01'.repeat(32));
+      t('decodeField sig/datasig lengths', v.decodeField('k', { kind: 'sig' }, Buffer.alloc(65, 2)).length === 130 && v.decodeField('k', { kind: 'datasig' }, Buffer.alloc(64, 3)).length === 128);
+      let wl = ''; try { v.decodeField('k', { kind: 'pubkey' }, Buffer.alloc(31)); } catch (e) { wl = e.message; }
+      t('decodeField pubkey wrong length rejected', /pubkey push is 31B/.test(wl));
+      const base = JSON.parse(fs.readFileSync(artifactPath, 'utf8'));
+      const cn = Object.keys(base.contracts)[0];
+      const mutated = (i, val) => { const a = JSON.parse(JSON.stringify(base)); a.contracts[cn].compiled.bytecode[i] = val; return a; };
+      const rej = a => { try { loadArtifact(a); return ''; } catch (e) { return e.message; } };
+      t('artifact with intact bytecode still loads', rej(base) === '');
+      t('bytecode value 256+x rejected (no silent wrap)', /bytes 0-255/.test(rej(mutated(200, 256 + base.contracts[cn].compiled.bytecode[200]))));
+      t('bytecode value 1.5 rejected', /bytes 0-255/.test(rej(mutated(200, 1.5))));
+      t('bytecode value -1 rejected', /bytes 0-255/.test(rej(mutated(200, -1))));
+    }
+
     // F1 gate enforced on the override and at signing time (audit S15)
     {
       const thr = f => { try { f(); return null; } catch (e) { return e.message; } };

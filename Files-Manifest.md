@@ -57,18 +57,18 @@ they do.
 |---|---|---|
 | `genesis-verify.js` | 21 | Genesis verification: source/artifact vs on-chain covenant — state/script/consensus layers, chain-read covenant_id as the verdict source (19 core + 2 chain-anchored Counter positives, active when counter-abi.json is present). Deferred: UTXO-lookup genesis discovery (Path B); heterogeneous covenant groups report per-output detail under ALL-match strictness. |
 | `index.js` | — | Unified package entrypoint: Contract, Provider, generateTypes, primitives. |
-| `contract.js` | 26 | High-level Contract: state reflection, arg normalization, next-state derivation, input population, continuation binding. |
-| `provider.js` | 26 | Abstract Provider, KaspaRestProvider (mainnet/testnet), MockProvider with UTXO tracking and block simulation. |
+| `contract.js` | 33 | High-level Contract: state reflection, arg normalization, next-state derivation, input population, continuation binding. |
+| `provider.js` | 36 | Abstract Provider, KaspaRestProvider (mainnet/testnet), MockProvider with UTXO tracking and block simulation. |
 | `silly-compile.js` | 18 | silverc invocation, constructor-arg baking, fail-closed artifact verification gates. |
 | `silly-typegen.js` | 17 | TypeScript declaration generator: typed state, entry args, tuples, Contract classes. |
 | `sil-abi.js` | — | Artifact loader; derives and asserts dispatch tags; verifies template hashes; decodes state. Verified via consumers and silly check. |
 | `sil-encoder.js` | 51 | Sigscripts from ABI params; minimal arg pushes, explicit state pushes, columnar struct arrays. |
-| `kaspa-crypto.js` | 19 | CashAddr-variant bech32; KIP-20 covenant ID; P2SH/P2PK script public keys. |
+| `kaspa-crypto.js` | 26 | CashAddr-variant bech32; KIP-20 covenant ID; P2SH/P2PK script public keys. |
 | `kaspa-sighash.js` | 4 | v1 sighash: keyed blake2b over the 16-field preimage with covenant bindings. |
-| `kaspa-tx.js` | 32 | Tx assembly (auto computeBudget 10/60), P2PK and covenant signing, mass/fee estimation. |
-| `kaspa-wrpc.js` | 26 | wRPC broadcast: gauntlet-B4 schema, BigInt serialization, rotation on error and rejection. |
+| `kaspa-tx.js` | 33 | Tx assembly (auto computeBudget 10/60), P2PK and covenant signing, mass/fee estimation. |
+| `kaspa-wrpc.js` | 29 | wRPC broadcast: gauntlet-B4 schema, BigInt serialization, rotation on error and rejection. |
 
-**Total: 240 tests across 10 self-test modules** — `npm test` prints ten
+**Total: 268 tests across 10 self-test modules** — `npm test` prints ten
 `ALL n PASS` lines; their sum is the contract.
 
 ## The Scaffold — `silly init <name>`
