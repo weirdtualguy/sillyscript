@@ -155,6 +155,11 @@ function signP2PKInput(tx, inputIndex, privKey) {
 
 function signCovenantInput(tx, inputIndex, privKey, contractView, entryName, args, redeemScript) {
     const redeem = Buffer.isBuffer(redeemScript) ? redeemScript : Buffer.from(redeemScript, 'hex');
+    // F1 gate (audit S15): the redeem must be this contract's template AND hash to the spk being spent
+    contractView.verifyRedeem(redeem);
+    const spent = tx.inputs[inputIndex] && tx.inputs[inputIndex].spk;
+    if (String(spent).toLowerCase() !== p2shSpk(redeem).toString('hex'))
+        throw new Error('signCovenantInput: input ' + inputIndex + ' spk does not match the P2SH script of the supplied redeem script (wrong contract state?)');
     const entry = contractView.entry(entryName);
     const sigParamIdxs = entry.params.map((p, i) => p.type.kind === 'sig' ? i : -1).filter(i => i >= 0);
 

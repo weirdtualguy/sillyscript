@@ -208,6 +208,7 @@ class KaspaRestProvider extends Provider {
 
   async waitForConfirmation(txId, { timeout = 60000, pollInterval = 2000 } = {}) {
     const start = Date.now();
+    let lastErr = null, notAccepted = false;
     while (Date.now() - start < timeout) {
       try {
         const tx = await this.getTransaction(txId);
@@ -215,7 +216,9 @@ class KaspaRestProvider extends Provider {
           const blockHashes = tx.block_hashes || tx.blockHashes ||
             (tx.accepting_block_hash ? [tx.accepting_block_hash] : []);
           if (blockHashes && blockHashes.length > 0) {
-            return {
+            // Inclusion in a block is not acceptance: an explicit is_accepted === false keeps waiting (audit S16)
+            if (tx.is_accepted === false) notAccepted = true;
+            else return {
               txId,
               blockHash: blockHashes[0],
               daaScore: parseInt(tx.block_daa_score || tx.daaScore || 0, 10),
@@ -223,9 +226,11 @@ class KaspaRestProvider extends Provider {
             };
           }
         }
-      } catch (e) { /* retry */ }
+      } catch (e) { lastErr = e; }
       await new Promise(r => setTimeout(r, pollInterval));
     }
+    if (notAccepted) throw new Error('KaspaRestProvider: tx ' + txId + ' not confirmed within ' + timeout + 'ms (included in a block but not accepted by the selected chain)');
+    if (lastErr) throw new Error('KaspaRestProvider: tx ' + txId + ' not confirmed within ' + timeout + 'ms (last error: ' + lastErr.message + ')');
     throw new Error(`KaspaRestProvider: tx ${txId} not confirmed within ${timeout}ms`);
   }
 
@@ -465,6 +470,24 @@ if (require.main === module && process.argv.includes('--test')) {
     }
     t('toRestFormat amount is string', restFormat.transaction.outputs[0].amount === '100000000');
 
+
+    // Inclusion is not acceptance; timeouts say why (audit S16)
+    {
+      const mk = seq => { let i = 0; return async () => { const body = seq[Math.min(i++, seq.length - 1)]; return { status: 200, ok: true, json: async () => body }; }; };
+      const id = 'aa'.repeat(32);
+      const bh = { block_hashes: ['ab'.repeat(32)], block_daa_score: '7' };
+      const wait = (seq, o) => new KaspaRestProvider('testnet', { fetch: seq }).waitForConfirmation(id, o);
+      const rA = await wait(mk([Object.assign({ is_accepted: false }, bh), Object.assign({ is_accepted: true }, bh)]), { timeout: 2000, pollInterval: 5 });
+      t('waitForConfirmation keeps waiting while is_accepted is false', rA.isAccepted === true && rA.daaScore === 7);
+      let msgB = '';
+      try { await wait(mk([Object.assign({ is_accepted: false }, bh)]), { timeout: 60, pollInterval: 5 }); } catch (e) { msgB = e.message; }
+      t('never-accepted tx times out with an explicit reason', /not accepted by the selected chain/.test(msgB));
+      const rC = await wait(mk([{ block_hashes: ['cd'.repeat(32)] }]), { timeout: 2000, pollInterval: 5 });
+      t('missing is_accepted still confirms on inclusion (compat)', rC.blockHash === 'cd'.repeat(32));
+      let msgD = '';
+      try { await wait(async () => { throw new Error('boom'); }, { timeout: 40, pollInterval: 5 }); } catch (e) { msgD = e.message; }
+      t('timeout reports the last underlying error', /last error: boom/.test(msgD));
+    }
 
     // Multi-step mock flow: broadcast creates output UTXOs (fix #7)
     {

@@ -31,10 +31,7 @@ class Contract {
     if (typeof artifactOrPath === 'string') {
       loaded = loadArtifact(artifactOrPath);
     } else if (artifactOrPath && artifactOrPath.contracts) {
-      const tempPath = `/tmp/temp_art_${Date.now()}_${Math.random().toString(36).slice(2)}.json`;
-      fs.writeFileSync(tempPath, JSON.stringify(artifactOrPath));
-      try { loaded = loadArtifact(tempPath); }
-      finally { try { fs.unlinkSync(tempPath); } catch (e) {} }
+      loaded = loadArtifact(artifactOrPath); // object artifact parsed in place, no temp file (audit S14)
     } else if (artifactOrPath && artifactOrPath.bytecode && artifactOrPath.entries) {
       this.view = artifactOrPath;
       this.name = this.view.name;
@@ -65,6 +62,7 @@ class Contract {
     // State & redeem management
     if (opts.redeemScript) {
       this.redeemScript = Buffer.isBuffer(opts.redeemScript) ? opts.redeemScript : Buffer.from(opts.redeemScript, 'hex');
+      this.view.verifyRedeem(this.redeemScript); // F1 gate: an override must be this contract's template (audit S15)
     } else if (opts.state) {
       this.redeemScript = this.buildRedeem(opts.state);
     } else {
@@ -309,6 +307,36 @@ if (require.main === module && process.argv.includes('--test')) {
     const sig1 = contract.buildSigScript('claim', posArgs);
     const sig2 = contract.buildSigScript('claim', namedArgs);
     t('named args produce identical sigscript to positional', sig1.equals(sig2));
+
+    // Object artifacts load without temp files (audit S14)
+    {
+      const artObj = JSON.parse(fs.readFileSync(artifactPath, 'utf8'));
+      const realWrite = fs.writeFileSync;
+      let wrote = false, co = null;
+      fs.writeFileSync = function () { wrote = true; throw new Error('fs write forbidden in this test'); };
+      try { co = new Contract(artObj, { provider: mock }); } catch (e) { co = null; } finally { fs.writeFileSync = realWrite; }
+      t('Contract(object) loads without writing files', co !== null && wrote === false);
+      t('Contract(object) matches Contract(path)', co !== null && co.address === contract.address);
+      let nullRejected = false;
+      try { loadArtifact(null); } catch (e) { nullRejected = /must be a path or an object/.test(e.message); }
+      t('loadArtifact(null) rejected', nullRejected);
+    }
+
+    // F1 gate enforced on the override and at signing time (audit S15)
+    {
+      const thr = f => { try { f(); return null; } catch (e) { return e.message; } };
+      const bad = Buffer.from(contract.redeemScript); bad[bad.length - 1] ^= 1;
+      t('redeem override with foreign bytes rejected', thr(() => new Contract(artifactPath, { provider: mock, redeemScript: bad })) !== null);
+      t('redeem override with own next state accepted', new Contract(artifactPath, { provider: mock, redeemScript: nextRedeem }).redeemScript.equals(nextRedeem));
+      const key = Buffer.alloc(32, 7);
+      const mkTx = spk => ({ inputs: [{ txId: '11'.repeat(32), index: 0, amount: 1000000000n, spk, sequence: 0n }], outputs: [] });
+      const okTx = contract.populateInput(mkTx(contract.scriptPubKey.toString('hex')), 0, { entryName: 'claim', args: posArgs, privKey: key });
+      t('signCovenantInput passes the gate for the matching state', okTx.inputs[0].sigScript === contract.buildSigScript('claim', posArgs).toString('hex'));
+      const m1 = thr(() => contract.populateInput(mkTx('20' + '56'.repeat(32) + 'ac'), 0, { entryName: 'claim', args: posArgs, privKey: key }));
+      t('signCovenantInput rejects a foreign input spk', m1 !== null && /spk does not match/.test(m1));
+      const m2 = thr(() => contract.populateInput(mkTx(contract.scriptPubKey.toString('hex')), 0, { entryName: 'claim', args: posArgs, privKey: key, redeemScript: nextRedeem }));
+      t('signCovenantInput rejects a wrong-state redeem', m2 !== null && /spk does not match/.test(m2));
+    }
 
     // Provider integration: mock UTXO flow
     (async () => {

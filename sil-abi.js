@@ -119,8 +119,13 @@ function decodeScriptNum(buf) {  // sign-magnitude little-endian
 // Artifact loading & verification
 // ---------------------------------------------------------------------------
 
-function loadArtifact(path) {
-  const a = JSON.parse(fs.readFileSync(path, 'utf8'));
+function loadArtifact(pathOrObject) {
+  // A path or an already-parsed artifact object: no temp files (Termux has no /tmp)
+  const isPath = typeof pathOrObject === 'string';
+  const a = isPath ? JSON.parse(fs.readFileSync(pathOrObject, 'utf8')) : pathOrObject;
+  const path = isPath ? pathOrObject : 'artifact object';
+  if (a === null || typeof a !== 'object')
+    throw new Error('sil-abi: artifact must be a path or an object (' + path + ')');
   if (a.schema_version !== 1)
     throw new Error('sil-abi: schema_version ' + a.schema_version + ' unsupported (' + path + ')');
   const structs = a.structs || {};
