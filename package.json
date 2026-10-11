@@ -23,13 +23,13 @@
   ],
   "author": "",
   "license": "ISC",
-  "engines": { "node": ">=18" },
+  "engines": {
+    "node": ">=18"
+  },
   "type": "commonjs",
   "dependencies": {
     "@noble/curves": "^1.6.0",
-    "@noble/hashes": "^1.4.0"
-  },
-  "optionalDependencies": {
+    "@noble/hashes": "^1.4.0",
     "ws": "^8.22.0"
   }
 }
