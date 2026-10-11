@@ -217,7 +217,7 @@ module.exports = { KaspaWrpcProvider, toWrpcFormat, serializeWrpcTx, serializeBi
 // Self-test
 // ─────────────────────────────────────────────────────────────────────────────
 
-if (process.argv.includes('--test')) {
+if (require.main === module && process.argv.includes('--test')) {
     let pass = 0, fail = 0;
     const t = (label, cond, detail) => {
         if (cond) pass++; else fail++;

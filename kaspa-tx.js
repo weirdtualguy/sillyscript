@@ -1,4 +1,4 @@
-// kaspa-tx.js — Transaction builder, signer, and submitter (kaspa-platform-kit)
+// kaspa-tx.js — Transaction builder, signer, and submitter (sillyscript)
 //
 // The vertical: ABI -> encoder -> crypto -> sighash -> THIS -> chain.
 

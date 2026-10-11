@@ -1,4 +1,4 @@
-// kaspa-crypto.js — Kaspa cryptographic primitives (kaspa-platform-kit) v2
+// kaspa-crypto.js — Kaspa cryptographic primitives (sillyscript) v2
 //
 // PRODUCTION-VALIDATED against mainnet genesis f6ebb717...:
 //   covenant ID computed from REST data matched on-chain 63fccd99...

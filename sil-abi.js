@@ -1,5 +1,5 @@
 // sil-abi.js — SilverScript ABI artifact loader & verifier
-// kaspa-platform-kit / codec seed · v2 (struct-aware dispatch tags)
+// sillyscript / codec seed · v2 (struct-aware dispatch tags)
 //
 // [REF c7d17a1] tag = blake3("name(t1,t2,...)")[0..4], unkeyed, where:
 //   - scalars render as: int, temporal, bool, byte, string, pubkey, sig,

@@ -1,4 +1,4 @@
-// kaspa-sighash.js — v1 transaction signing hash (kaspa-platform-kit)
+// kaspa-sighash.js — v1 transaction signing hash (sillyscript)
 //
 // Direct port of the PROVEN kaspa-sighash-v1.ts (mainnet-verified).
 // Structure:

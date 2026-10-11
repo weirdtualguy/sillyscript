@@ -1,4 +1,4 @@
-// sil-encoder.js — ABI-driven sigscript encoder (kaspa-platform-kit / codec seed)
+// sil-encoder.js — ABI-driven sigscript encoder (sillyscript / codec seed)
 //
 // Builds entry sigscripts from the ABI at runtime. Arg order, types, and tags
 // are READ FROM THE ARTIFACT — never hardcoded. A builder pointed at a wrong
