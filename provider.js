@@ -6,8 +6,8 @@
 
 
 const NETWORKS = {
-  mainnet: { hrp: 'kaspa', rest: 'https://api.kaspa.org', dust: 100000000n },
-  testnet: { hrp: 'kaspatest', rest: 'https://api-tn10.kaspa.org', dust: 100000000n },
+  mainnet: { hrp: 'kaspa', rest: 'https://api.kaspa.org' },
+  testnet: { hrp: 'kaspatest', rest: 'https://api-tn10.kaspa.org' },
 };
 
 // REST carries sequence as a JSON number: refuse what it cannot carry exactly instead of rounding (audit S19)

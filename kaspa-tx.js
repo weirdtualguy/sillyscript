@@ -45,6 +45,29 @@ function estimateMass(tx) {
     return sizeBytes * 2 + computeBudgetMass;
 }
 
+// Storage mass (KIP-9 family). [PIN] TN10 dust probe 2026-10-11: node-reported masses 985104 and
+// 511443 match this formula exactly for two 1 KAS inputs; limit 500000 as quoted by the node.
+// Inputs use |I|^2/sum(in), never smaller than the harmonic form, so any error over-estimates.
+// [TODO-verify] consensus vs mempool layer of the limit; unequal multi-input vectors.
+const STORAGE_MASS_C = 1000000000000n;
+const STORAGE_MASS_LIMIT = 500000n;
+function storageMass(inputs, outputs) {
+    if (!inputs || !outputs || inputs.length === 0 || outputs.length === 0)
+        throw new Error('storageMass: need at least one input and one output');
+    let outTerm = 0n, sumIn = 0n;
+    for (const o of outputs) {
+        if (typeof o.amount !== 'bigint' || o.amount <= 0n) throw new Error('storageMass: output amount must be a positive BigInt');
+        outTerm += STORAGE_MASS_C / o.amount;
+    }
+    for (const i of inputs) {
+        if (typeof i.amount !== 'bigint' || i.amount <= 0n) throw new Error('storageMass: input amount must be a positive BigInt');
+        sumIn += i.amount;
+    }
+    const n = BigInt(inputs.length);
+    const m = outTerm - (STORAGE_MASS_C * n * n) / sumIn;
+    return m > 0n ? m : 0n;
+}
+
 function proactiveFee(tx) {
     return BigInt(Math.ceil(estimateMass(tx) * RELAY_FLOOR_RATE));
 }
@@ -103,9 +126,14 @@ function buildTx(inputs, outputs, { lockTime = 0 } = {}) {
         if (inp.sigOpCount === undefined) inp.sigOpCount = 0;
     }
     for (let di = 0; di < outputs.length; di++) {
-        if (outputs[di].amount < 100000000n) {
-            console.warn('buildTx WARNING: output[' + di + '] = ' + outputs[di].amount + ' sompi is below 1 KAS dust guidance');
+        if (outputs[di].amount <= 0n) {
+            console.warn('buildTx WARNING: output[' + di + '] = ' + outputs[di].amount + ' sompi is not positive');
         }
+    }
+    if (inputs.every(i => typeof i.amount === 'bigint' && i.amount > 0n) && outputs.every(o => typeof o.amount === 'bigint' && o.amount > 0n)) {
+        const sm = storageMass(inputs, outputs);
+        if (sm > STORAGE_MASS_LIMIT)
+            console.warn('buildTx WARNING: storage mass ' + sm + ' exceeds the ' + STORAGE_MASS_LIMIT + ' limit; the node rejects this tx (probe 2026-10-11)');
     }
     const totalIn = inputs.reduce((s, i) => s + i.amount, 0n);
     const totalOut = outputs.reduce((s, o) => s + o.amount, 0n);
@@ -249,7 +277,7 @@ module.exports = {
     toRestFormat, submitTx, submitWithFeeDiscovery,
     waitForConfirmation, signSubmitWait,
     p2pkOutput, p2shOutput, covenantOutput, p2pkSpk, p2shSpk,
-    FEE_REGEX, SEQUENCE_DISABLE, estimateMass, proactiveFee, RELAY_FLOOR_RATE,
+    FEE_REGEX, SEQUENCE_DISABLE, estimateMass, proactiveFee, RELAY_FLOOR_RATE, storageMass, STORAGE_MASS_LIMIT,
     getDefaultProvider, setDefaultProvider, resolveProvider,
 };
 
@@ -376,6 +404,18 @@ if (require.main === module && process.argv.includes('--test')) {
     // Mass & Sequence primitives
     {
         t('SEQUENCE_DISABLE bit 63 set', (SEQUENCE_DISABLE & (1n << 63n)) !== 0n);
+        {
+            // Storage mass: chain-anchored (TN10 dust probe 2026-10-11, two 1 KAS inputs)
+            const mIn = [{ amount: 100000000n }, { amount: 100000000n }];
+            const mOut = (a, c) => [{ amount: a }, { amount: c }];
+            t('storage mass 1000000 probe = 985104 (node-reported)', storageMass(mIn, mOut(1000000n, 195900000n)) === 985104n);
+            t('storage mass 1900000 probe = 511443 (node-reported)', storageMass(mIn, mOut(1900000n, 195000000n)) === 511443n);
+            t('storage mass 1950000 probe within limit (node accepted)', storageMass(mIn, mOut(1950000n, 194950000n)) <= STORAGE_MASS_LIMIT);
+            t('storage mass 1900000 probe over limit (node rejected)', storageMass(mIn, mOut(1900000n, 195000000n)) > STORAGE_MASS_LIMIT);
+            let thr = false;
+            try { storageMass(mIn, mOut(0n, 195000000n)); } catch (e) { thr = /storageMass/.test(e.message); }
+            t('storage mass rejects a zero output', thr);
+        }
         const tx = {
             inputs: [{ sigScript: '00', computeBudget: 10 }],
             outputs: [{ script: 'aa20' + '00'.repeat(32) + '87' }],

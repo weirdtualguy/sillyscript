@@ -11,7 +11,8 @@
 const {
     Contract, KaspaRestProvider, KaspaWrpcProvider,
     buildTx, signP2PKInput, signCovenantInput,
-    pickUtxosSafe, txFee, p2pkSpk
+    pickUtxosSafe, txFee, p2pkSpk,
+    storageMass, STORAGE_MASS_LIMIT
 } = require('sillyscript');
 const {
     loadEnv, loadRecord, saveRecord, decodeState,
@@ -82,11 +83,11 @@ async function main() {
     // binding, NO covenant outputs — the lineage ends here.
     const outputs = [{ amount: covUtxo.amount, script: p2pkSpk(pubKey).toString('hex') }];
     const changeAmount = totalInput - WALLET_FEE;
-    if (changeAmount >= 100000000n) {
+    if (changeAmount > 0n && storageMass(inputs, outputs.concat([{ amount: changeAmount }])) <= STORAGE_MASS_LIMIT) {
         outputs.push({ amount: changeAmount, script: p2pkSpk(pubKey).toString('hex') });
         console.log('Change output: ' + changeAmount + ' sompi');
     } else if (changeAmount > 0n) {
-        console.log('WARNING: ' + changeAmount + ' sompi change is below the 100M guard -');
+        console.log('WARNING: ' + changeAmount + ' sompi change would push storage mass over the ' + STORAGE_MASS_LIMIT + ' limit -');
         console.log('         it burns as additional fee (pins 11/S7).');
     }
 

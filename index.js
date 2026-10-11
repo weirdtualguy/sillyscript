@@ -75,6 +75,8 @@ module.exports = {
   waitForConfirmation: tx.waitForConfirmation,
   estimateMass: tx.estimateMass,
   proactiveFee: tx.proactiveFee,
+  storageMass: tx.storageMass,
+  STORAGE_MASS_LIMIT: tx.STORAGE_MASS_LIMIT,
   SEQUENCE_DISABLE: tx.SEQUENCE_DISABLE,
   NETWORKS,
 };

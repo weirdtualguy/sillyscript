@@ -13,7 +13,8 @@ const fs = require('fs');
 const path = require('path');
 const {
     Contract, KaspaRestProvider, KaspaWrpcProvider,
-    buildTx, signP2PKInput, setGenesisCovenant, p2pkSpk, pickUtxosSafe, txFee
+    buildTx, signP2PKInput, setGenesisCovenant, p2pkSpk, pickUtxosSafe, txFee,
+    storageMass, STORAGE_MASS_LIMIT
 } = require('sillyscript');
 const { compile } = require('sillyscript/silly-compile');
 const {
@@ -80,12 +81,12 @@ async function main() {
     const outputs = [
         { amount: CARRIER, script: contract.scriptPubKey.toString('hex'), covenant: null },
     ];
-    if (changeAmount >= 100000000n) {
+    if (changeAmount > 0n && storageMass(inputs, outputs.concat([{ amount: changeAmount }])) <= STORAGE_MASS_LIMIT) {
         outputs.push({ amount: changeAmount, script: p2pkSpk(pubKey).toString('hex') });
     } else if (changeAmount > 0n) {
-        console.log('WARNING: ' + changeAmount + ' sompi change is below the 100M guard -');
-        console.log('         it burns as additional fee (pins 11/S7). Fund with smaller UTXOs');
-        console.log('         or accept the burn.');
+        console.log('WARNING: ' + changeAmount + ' sompi change would push storage mass over the ' + STORAGE_MASS_LIMIT + ' limit -');
+        console.log('         it burns as additional fee (pins 11/S7).');
+        console.log('         Keep a larger remainder to avoid the burn.');
     }
 
     // ── 4. Build, then bind the genesis covenant BEFORE signing ──
