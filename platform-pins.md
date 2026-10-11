@@ -315,7 +315,7 @@ record-driven, zero hand-edits, all confirmed on-chain):
 First close-from-elevated-state and first unmodified interact re-run in
 project history. Close input computeBudget 60 confirmed at count=2n.
 Continuation outputs of 99,900,000 / 99,800,000 sompi created AND spent:
-outputs below the 1 KAS buildTx dust guidance are consensus-valid (11/S7).
+outputs below 1 KAS are consensus-valid (11/S7); the binding limit is storage mass (4.9).
 
 Repeat proof (post fee-gate hardening, same day): the full lifecycle ran
 again with zero hand-edits and every S5/S7 fee warning firing as designed -
@@ -427,7 +427,7 @@ Always 0 on v1 inputs (v0-only field, still required in submission JSON).
 
 Rejection messages contain "required fee of X" (sompi). Parse, add 10% margin,
 rebuild, resubmit; bound 5 attempts. Mass ~ 2 x tx_bytes; fee ~ 100 sompi/mass
-~ 200 sompi/tx-byte. Storage mass scales ~inversely with output value.
+~ 200 sompi/tx-byte. Storage mass formula and 500000 limit: see 4.9.
 Multi-chunk reveals hit a mass-dependent floor — chunk and discover per group.
 
 ### 4.6 UTXO selection [PIN]
@@ -461,6 +461,30 @@ consecutive actions on block confirmation before signing the next spend.
 [PIN] ENOTFOUND on a working host is usually transient DNS/VPN — re-probe before patching.
 
 ---
+
+### 4.9 Storage mass, not a dust floor [PIN TN10 probe 2026-10-11]
+
+Node rejection text: "transaction storage mass of N is larger than max allowed size of 500000".
+[PIN] N = sum(floor(1e12 / out)) - floor(1e12 * |I|^2 / sum(in)), floored at 0. Verified on two
+1 KAS P2PK inputs, two outputs (probe-out/dust-probe-*.log, ~/lifecycle-test2/dust-probe.js):
+
+| out[0] sompi | change sompi | result |
+|---|---|---|
+| 50,000,000 | 146,900,000 | accepted, confirmed 208576f5a4ce4c78f567ec6462ad33f4f0927ecfd5cdf08bd33da8bf280488dd |
+| 10,000,000 | 186,900,000 | accepted, confirmed 6b8f2e5501caa27389d3c3ab07527a070cb2c79365c677112f8cc649d9f0c407 |
+| 1,950,000 | 194,950,000 | accepted, confirmed 43069a050954df48d838248adb1dca57c3038b08dc628c539821c2ead4f15445 (formula 497,949; mass not node-reported) |
+| 1,900,000 | 195,000,000 | rejected, node mass 511,443 (matches formula; b55e1a0b7d58c178...) |
+| 1,000,000 | 195,900,000 | rejected, node mass 985,104 (matches formula; a1b2796c31aaba7b...) |
+
+There is no flat dust constant: the smallest valid output depends on the whole tx (about 1.9-1.95M
+sompi for these inputs). The 1 KAS "dust" guess was wrong: outputs far below 1 KAS are valid,
+and the limit that rejected the smaller outputs is mass, not a minimum amount.
+[TODO-verify] consensus vs mempool-policy layer of the 500000 limit (the node text names neither).
+[TODO-verify] a flat dust rule below the mass limit (mass binds first for these inputs, so this
+probe cannot see one). [TODO-verify] unequal-value multi-input vectors: |I|^2/sum(in) vs the
+harmonic form (sum of 1e12/in) are identical for equal inputs; kaspa-tx.js storageMass uses the
+first, which never under-estimates. [TODO-verify] P2SH/covenant outputs (formula is value-only).
+Law: guards derive from the constraint they protect (storageMass()), never a round number.
 
 ## 5. Environment & Tooling
 
@@ -714,7 +738,7 @@ sillyscript's pure-JS path is already proven.
 | S4 | close template shipped computeBudget 100 labeled PROVEN | constant copied from failed-attempt scripts; no confirmed tx ever carried it | never grade a constant without the txid that proves it (Bible 0.4) |
 | S5 | Fee labels conflated selection target with paid fee (3.1M/5M circulated as proven; actuals ~100M) | intended-fee constants graded as proven; nothing compared txFee(tx) to intent | a proven fee is inputs-minus-outputs of a CONFIRMED tx, not a selection target |
 | S6 | Doc counts drifted in two places (187 vs 177; manifest 13/13/15/27 + two modules missing) | counts duplicated across documents | counts have ONE owner (Files-Manifest.md); all gates are count-free |
-| S7 | ~3.86 TKAS burned as excess fee across the 4-tx lifecycle (each tx dropped a 95-97M change output) | change guard (100M) equals the wallet UTXO size (100M) - change always dropped, silently | warn loudly on dropped change; consensus dust floor [TODO-verify] - probe before lowering the guard |
+| S7 | ~3.86 TKAS burned as excess fee across the 4-tx lifecycle (each tx dropped a 95-97M change output) | change guard (100M) equals the wallet UTXO size (100M) - change always dropped, silently | warn loudly on dropped change; RESOLVED 2026-10-11: no flat dust floor, storage mass binds (4.9); guards are storageMass()-based |
 | S8 | `silly genesis verify` printed help + exit 0 on BOTH live runs — the negative test false-passed | async command registered a promise, then fell through to the synchronous help fallback, whose process.exit(0) won the race | an async CLI command owns the process lifetime: top-level return (CJS) after promise registration; CLI negative tests assert EXIT CODES, not output alone |
 | S9 | live --initial-state {count:3} failed with the raw TypeError "Cannot mix BigInt and other types" instead of the baked-state diagnosis; the positive {count:0} run could NEVER pass (Number 0 fails the 0 === 0n early-return) | sil-encoder asymmetry: the sigscript arg path coerces via asBigInt, the state path (encodeFixedPayload → serializeScriptNumFixed8) forgot; every unit test used BigInt literals, so the gap surfaced only in the live CLI run | coercion contracts are tested at the boundary where untyped input enters (JSON/CLI), not only with typed literals; fail-closed held (right layer, exit 1), but a raw internals message is itself a defect — the diagnosis is part of the contract |
 | S10 | Scaffold fee hard limit labeled "5 KAS" was 50_000_000_000n sompi = 500 KAS in SAFETY.md and all three templates (100x loose); the >2x-intent gate masked it on every run | sompi/KAS conversion done by hand and cloned into four places; no test evaluated the constant [ran: 5n*100000000n = 500000000n] | a safety constant is evaluated, not labeled: 1 KAS = 1e8 sompi, and every clone is asserted by a test (kaspa-tx.js guard); a rail is graded by what it blocks |

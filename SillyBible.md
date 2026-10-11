@@ -296,8 +296,8 @@ Two implications:
 
 Every output costs real money forever. This governs all covenant design:
 
-- **Dust**: outputs below MIN_DUST are consensus-invalid. Covenant carriers
-  must carry ≥ the dust floor in KAS — that KAS is locked until the
+- **Dust**: no flat dust floor is pinned; outputs of 0.0195 KAS were accepted on TN10 (pins §4.9). Covenant carriers
+  must satisfy the storage-mass limit (§4.9) — that KAS is locked until the
   covenant terminates.
 - **Storage mass** scales ~inversely with output value: a 0.1 KAS carrier
   costs ~10x the mass of a 1 KAS carrier. Small outputs are
@@ -321,7 +321,7 @@ Three layers enforce, in this order:
    deserialization error`, or the silent compute_budget field-drop that
    manifests as `script-units limit=9999` [PIN gauntlet-B4]. Fix: probe
    the node for ground truth (getBlock + includeTransactions).
-2. **Consensus-level**: sequence locks (CSV), locktimes (CLTV), dust,
+2. **Consensus-level**: sequence locks (CSV), locktimes (CLTV), storage mass (pins §4.9; layer [TODO-verify]),
    mass, standardness, compute budget. These reject BEFORE script runs —
    the "sequence locks conditions was not met" rejection never reaches the
    covenant's `this.ageDaa` check.

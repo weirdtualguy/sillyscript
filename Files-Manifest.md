@@ -80,9 +80,8 @@ lifecycle scripts copied verbatim from `bin/templates/`.
 
 **Lifecycle proven end-to-end on testnet-10 (2026-10-05)**: deploy →
 interact ×2 (the second an UNMODIFIED re-run) → close from elevated state
-(count=2n). Citations in pins §3.3b. Known wart: the 100M change guard
-burns sub-guard change as fee (pins §11 S7) — fix pending the dust-floor
-probe.
+(count=2n). Citations in pins §3.3b. Resolved 2026-10-11: the 100M change guard was replaced by a
+storage-mass check (pins §4.9, §11 S7).
 
 ## Probes — The Verification Layer
 
