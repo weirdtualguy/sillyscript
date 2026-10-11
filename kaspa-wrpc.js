@@ -91,6 +91,14 @@ function buildSubmitRequest(rpcTx, allowOrphan = true) {
     return { id: 1, method: 'submitTransaction', params: { transaction: rpcTx, allowOrphan: allowOrphan === true } };
 }
 
+// Wire frame as a STRING. A string tx is spliced in verbatim so u64 digits (sequence 2^63,
+// values > 2^53) are never rounded through JS Number. Objects keep the S20 frame.
+function submitFrameString(rpcTx, allowOrphan = true) {
+    if (typeof rpcTx === 'string')
+        return '{"id":1,"method":"submitTransaction","params":{"transaction":' + rpcTx + ',"allowOrphan":' + (allowOrphan === true) + '}}';
+    return JSON.stringify(buildSubmitRequest(rpcTx, allowOrphan));
+}
+
 async function wrpcBroadcast(wrpcUrls, rpcTx, { timeout = 15000, allowOrphan = true } = {}) {
     let WsCtor;
     try { WsCtor = require('ws'); }
@@ -108,7 +116,7 @@ async function wrpcBroadcast(wrpcUrls, rpcTx, { timeout = 15000, allowOrphan = t
                 ws.terminate();
                 tryUrl(k + 1);
             }, timeout);
-            ws.on('open', () => ws.send(JSON.stringify(buildSubmitRequest(rpcTx, allowOrphan))));
+            ws.on('open', () => ws.send(submitFrameString(rpcTx, allowOrphan)));
             ws.on('message', d => {
                 const s = d.toString();
                 clearTimeout(t);
@@ -171,9 +179,9 @@ class KaspaWrpcProvider extends KaspaRestProvider {
     async broadcast(tx, { allowOrphan = true } = {}) {
         // Serialize with BigInt markers, strip them, parse back to get real numbers
         const wrpcTxStr = serializeWrpcTx(tx);
-        const wrpcTxObj = JSON.parse(wrpcTxStr);
+        // tx string is sent as-is (exact u64 digits; no parse/re-stringify)
 
-        const result = await wrpcBroadcast(this.wrpcEndpoints, wrpcTxObj, {
+        const result = await wrpcBroadcast(this.wrpcEndpoints, wrpcTxStr, {
             timeout: this.wrpcTimeout,
             allowOrphan,
         });
@@ -203,7 +211,7 @@ class KaspaWrpcProvider extends KaspaRestProvider {
     }
 }
 
-module.exports = { KaspaWrpcProvider, toWrpcFormat, serializeWrpcTx, serializeBigInt, WRPC_ENDPOINTS, wrpcBroadcast, getWebSocket, buildSubmitRequest };
+module.exports = { KaspaWrpcProvider, toWrpcFormat, serializeWrpcTx, serializeBigInt, WRPC_ENDPOINTS, wrpcBroadcast, getWebSocket, buildSubmitRequest, submitFrameString };
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Self-test
@@ -285,6 +293,18 @@ if (process.argv.includes('--test')) {
         };
         const parsed = JSON.parse(serializeWrpcTx(tx));
         t('SEQUENCE_DISABLE survives serialization', parsed.inputs[0].sequence === 9223372036854775808);
+    }
+
+    // u64 exactness on the wire (must not round-trip through Number)
+    {
+        const tx = { version: 1,
+            inputs: [{ txId: 'ab'.repeat(32), index: 0, sequence: 0x8000000000000000n }],
+            outputs: [{ amount: 9007199254740993n, script: 'aa20' + '11'.repeat(32) + '87' }] };
+        const msg = submitFrameString(serializeWrpcTx(tx), true);
+        t('wire keeps sequence 2^63 exact', msg.includes('"sequence":9223372036854775808'));
+        t('wire keeps value > 2^53 exact', msg.includes('"value":9007199254740993'));
+        t('wire frame is valid JSON', (() => { try { JSON.parse(msg); return true; } catch (e) { return false; } })());
+        t('string frame honors allowOrphan=false', submitFrameString('{}', false).includes('"allowOrphan":false'));
     }
 
     // submitTransaction frame: allowOrphan is honored and strict (audit S20)

@@ -254,6 +254,18 @@ class Contract {
 
     return tx.outputs[outputIndex];
   }
+
+  /**
+   * Adds the genesis output for a NEW covenant and binds its covenant ID.
+   * Call after buildTx and BEFORE signing (bindings are inside the sighash).
+   * Returns { amount, script, covenantId }.
+   */
+  addGenesisOutput(tx, outputIndex, authInputIndex, initialState, amount) {
+    const redeem = this.buildRedeem(initialState);
+    tx.outputs[outputIndex] = { amount: BigInt(amount), script: p2shSpk(redeem).toString('hex') };
+    const covenantId = setGenesisCovenant(tx, outputIndex, authInputIndex);
+    return { amount: tx.outputs[outputIndex].amount, script: tx.outputs[outputIndex].script, covenantId };
+  }
 }
 
 module.exports = { Contract };
