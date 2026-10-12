@@ -429,7 +429,7 @@ module.exports = {
 // Broadcast that survives a lost response (ECONNRESET after the node accepted the tx). The caller's
 // record gets no txId from a throw, so recover it by observation: watch = { address, amount } is an
 // output this tx is certain to create. A new UTXO there counts only if its tx spends one of OUR inputs.
-// [TODO-verify] on a live dropped response; REST shows confirmed state only (window = tries x pollInterval).
+// [PIN] verified live TN10 2026-10-12 (injected drop after an accepted broadcast): deploy 3ab56a5b, interact 2e70f396, close a62e34a0; REST shows confirmed state only (window = tries x pollInterval).
 async function broadcastGuarded(wrpc, rest, tx, watch, opts = {}) {
   const tries = opts.tries === undefined ? 8 : opts.tries;
   const pollInterval = opts.pollInterval === undefined ? 3000 : opts.pollInterval;
