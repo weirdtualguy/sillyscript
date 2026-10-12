@@ -199,10 +199,21 @@ class KaspaRestProvider extends Provider {
       .sort((a, b) => a.daaScore - b.daaScore);
   }
 
+  // POST that is never retried: a thrown network error leaves the outcome unknown (pins S30).
+  async _post(url, init) {
+    try { return await this.fetchFn(url, init); }
+    catch (e) {
+      const c = e && e.cause ? ' (' + (e.cause.code || e.cause.message) + ')' : '';
+      const err = new Error('KaspaRestProvider: broadcast request failed: ' + e.message + c + ' | outcome UNKNOWN: check an explorer for this wallet address before re-broadcasting');
+      err.cause = e;
+      throw err;
+    }
+  }
+
   async broadcast(tx, { allowOrphan = false } = {}) {
     if (!this.fetchFn) throw new Error('KaspaRestProvider: fetch is not available in environment');
     const payload = tx.transaction ? tx : toRestFormat(tx, { allowOrphan });
-    const res = await this.fetchFn(`${this.url}/transactions`, {
+    const res = await this._post(`${this.url}/transactions`, {
       method: 'POST',
       headers: this.headers,
       body: JSON.stringify(payload),
@@ -576,6 +587,9 @@ if (require.main === module && process.argv.includes('--test')) {
         try { await bad.getUtxos('kaspatest:x'); } catch (e) { /* expected */ }
         t('HTTP errors are not retried', h === 1);
         let b = 0;
+        const bq = new KaspaRestProvider('testnet', { fetch: async () => { throw netErr(); } });
+        let bm = ''; try { await bq.broadcast({ transaction: {} }); } catch (e) { bm = e.message; }
+        t('REST broadcast failure names the cause and outcome UNKNOWN', /ECONNRESET/.test(bm) && /outcome UNKNOWN/.test(bm));
         const bp = new KaspaRestProvider('testnet', { fetch: async () => { b++; throw netErr(); } });
         bp.readRetryScale = 0;
         try { await bp.broadcast({ transaction: {} }); } catch (e) { /* expected */ }
