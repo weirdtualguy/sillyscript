@@ -48,8 +48,9 @@ function estimateMass(tx) {
 // Storage mass (KIP-9 family). [PIN] TN10 dust probe 2026-10-11: node-reported masses 985104 and
 // 511443 match this formula exactly for two 1 KAS inputs; limit 500000 as quoted by the node.
 // [PIN] TN10 2026-10-12, unequal inputs: 2in/2out node mass 915851 = sum(floor(C/in)) (harmonic);
-// 2in/3out node mass 1085254 = n*floor(C/floor(sum(in)/n)) (mean). Rule inferred from those two shapes.
-// [TODO-verify] consensus vs mempool layer of the limit; 3in/2out and other shapes.
+// 2in/3out 1085254 and 3in/2out 1401735 = n*floor(C/floor(sum(in)/n)) (mean). Harmonic only for 2in/2out;
+// every other shape uses the mean form (never below the harmonic form, so unverified shapes over-estimate).
+// [TODO-verify] consensus vs mempool layer of the limit; 1-output multi-input and larger shapes.
 const STORAGE_MASS_C = 1000000000000n;
 const STORAGE_MASS_LIMIT = 500000n;
 function storageMass(inputs, outputs) {
@@ -66,7 +67,7 @@ function storageMass(inputs, outputs) {
         inHarm += STORAGE_MASS_C / i.amount;
     }
     const n = BigInt(inputs.length);
-    const inTerm = (outputs.length > inputs.length && inputs.length > 1) ? n * (STORAGE_MASS_C / (sumIn / n)) : inHarm;
+    const inTerm = (inputs.length === 2 && outputs.length === 2) ? inHarm : n * (STORAGE_MASS_C / (sumIn / n));
     const m = outTerm - inTerm;
     return m > 0n ? m : 0n;
 }
@@ -420,6 +421,7 @@ if (require.main === module && process.argv.includes('--test')) {
             t('storage mass rejects a zero output', thr);
             const uIn = [{ amount: 1950000n }, { amount: 195510000n }];
             t('storage mass 2in/2out unequal = 915851 (node-reported)', storageMass(uIn, mOut(700000n, 191760000n)) === 915851n);
+            t('storage mass 3in/2out unequal = 1401735 (node-reported)', storageMass([{ amount: 1950000n }, { amount: 99900000n }, { amount: 195510000n }], mOut(700000n, 291660000n)) === 1401735n);
             t('storage mass 2in/3out unequal = 1085254 (node-reported)', storageMass(uIn, [{ amount: 1000000n }, { amount: 10000000n }, { amount: 181460000n }]) === 1085254n);
         }
         const tx = {

@@ -485,8 +485,9 @@ probe cannot see one).
 [PIN TN10 probe 2026-10-12] unequal inputs 1,950,000 + 195,510,000; both txs rejected, node-reported mass:
 2 in / 2 out (outs 700000, 191760000) -> 915851 = sum(floor(1e12/in)) (harmonic), tx 2b40a113f4462674fbf70e1cdf3552d24c1cdf60c81cab724c2eca48f70b710c.
 2 in / 3 out (outs 1000000, 10000000, 181460000) -> 1085254 = n*floor(1e12/floor(sum(in)/n)) (mean), tx 57dc83209774d9b51e8cd1a64310deae8f46d6608a240ab6e5d88628bdcf5ced.
-Rule (inferred from these two shapes): outputs > inputs > 1 -> mean form, else harmonic form; equal inputs make both coincide.
-kaspa-tx.js storageMass implements it. [TODO-verify] 3in/2out, 1in and other shapes.
+3 in / 2 out (ins 1950000, 99900000, 195510000; outs 700000, 291660000) -> 1401735 = mean form, tx 09cf5b22910f776ec51386073a212a6d58dc783a4d36a1e0353c3bf0bb421038.
+Rule (inferred from three shapes): harmonic for 2 in / 2 out, mean form otherwise; equal inputs and 1 input make both coincide.
+kaspa-tx.js storageMass implements it; the mean form is the fallback for unverified shapes (never below the harmonic form). [TODO-verify] 1 out with 2+ inputs; 3+ in with 3+ out.
 [TODO-verify] P2SH/covenant outputs (formula is value-only).
 Law: guards derive from the constraint they protect (storageMass()), never a round number.
 
