@@ -47,14 +47,15 @@ function estimateMass(tx) {
 
 // Storage mass (KIP-9 family). [PIN] TN10 dust probe 2026-10-11: node-reported masses 985104 and
 // 511443 match this formula exactly for two 1 KAS inputs; limit 500000 as quoted by the node.
-// Inputs use |I|^2/sum(in), never smaller than the harmonic form, so any error over-estimates.
-// [TODO-verify] consensus vs mempool layer of the limit; unequal multi-input vectors.
+// [PIN] TN10 2026-10-12, unequal inputs: 2in/2out node mass 915851 = sum(floor(C/in)) (harmonic);
+// 2in/3out node mass 1085254 = n*floor(C/floor(sum(in)/n)) (mean). Rule inferred from those two shapes.
+// [TODO-verify] consensus vs mempool layer of the limit; 3in/2out and other shapes.
 const STORAGE_MASS_C = 1000000000000n;
 const STORAGE_MASS_LIMIT = 500000n;
 function storageMass(inputs, outputs) {
     if (!inputs || !outputs || inputs.length === 0 || outputs.length === 0)
         throw new Error('storageMass: need at least one input and one output');
-    let outTerm = 0n, sumIn = 0n;
+    let outTerm = 0n, sumIn = 0n, inHarm = 0n;
     for (const o of outputs) {
         if (typeof o.amount !== 'bigint' || o.amount <= 0n) throw new Error('storageMass: output amount must be a positive BigInt');
         outTerm += STORAGE_MASS_C / o.amount;
@@ -62,9 +63,11 @@ function storageMass(inputs, outputs) {
     for (const i of inputs) {
         if (typeof i.amount !== 'bigint' || i.amount <= 0n) throw new Error('storageMass: input amount must be a positive BigInt');
         sumIn += i.amount;
+        inHarm += STORAGE_MASS_C / i.amount;
     }
     const n = BigInt(inputs.length);
-    const m = outTerm - (STORAGE_MASS_C * n * n) / sumIn;
+    const inTerm = (outputs.length > inputs.length && inputs.length > 1) ? n * (STORAGE_MASS_C / (sumIn / n)) : inHarm;
+    const m = outTerm - inTerm;
     return m > 0n ? m : 0n;
 }
 
@@ -415,6 +418,9 @@ if (require.main === module && process.argv.includes('--test')) {
             let thr = false;
             try { storageMass(mIn, mOut(0n, 195000000n)); } catch (e) { thr = /storageMass/.test(e.message); }
             t('storage mass rejects a zero output', thr);
+            const uIn = [{ amount: 1950000n }, { amount: 195510000n }];
+            t('storage mass 2in/2out unequal = 915851 (node-reported)', storageMass(uIn, mOut(700000n, 191760000n)) === 915851n);
+            t('storage mass 2in/3out unequal = 1085254 (node-reported)', storageMass(uIn, [{ amount: 1000000n }, { amount: 10000000n }, { amount: 181460000n }]) === 1085254n);
         }
         const tx = {
             inputs: [{ sigScript: '00', computeBudget: 10 }],

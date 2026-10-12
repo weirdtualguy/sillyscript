@@ -465,7 +465,7 @@ consecutive actions on block confirmation before signing the next spend.
 ### 4.9 Storage mass, not a dust floor [PIN TN10 probe 2026-10-11]
 
 Node rejection text: "transaction storage mass of N is larger than max allowed size of 500000".
-[PIN] N = sum(floor(1e12 / out)) - floor(1e12 * |I|^2 / sum(in)), floored at 0. Verified on two
+[PIN] N = sum(floor(1e12 / out)) - inTerm, floored at 0 (inTerm: unequal-input note below). Verified on two
 1 KAS P2PK inputs, two outputs (probe-out/dust-probe-*.log, ~/lifecycle-test2/dust-probe.js):
 
 | out[0] sompi | change sompi | result |
@@ -481,9 +481,13 @@ sompi for these inputs). The 1 KAS "dust" guess was wrong: outputs far below 1 K
 and the limit that rejected the smaller outputs is mass, not a minimum amount.
 [TODO-verify] consensus vs mempool-policy layer of the 500000 limit (the node text names neither).
 [TODO-verify] a flat dust rule below the mass limit (mass binds first for these inputs, so this
-probe cannot see one). [TODO-verify] unequal-value multi-input vectors: |I|^2/sum(in) vs the
-harmonic form (sum of 1e12/in) are identical for equal inputs; kaspa-tx.js storageMass uses the
-first, which never under-estimates. [TODO-verify] P2SH/covenant outputs (formula is value-only).
+probe cannot see one).
+[PIN TN10 probe 2026-10-12] unequal inputs 1,950,000 + 195,510,000; both txs rejected, node-reported mass:
+2 in / 2 out (outs 700000, 191760000) -> 915851 = sum(floor(1e12/in)) (harmonic), tx 2b40a113f4462674fbf70e1cdf3552d24c1cdf60c81cab724c2eca48f70b710c.
+2 in / 3 out (outs 1000000, 10000000, 181460000) -> 1085254 = n*floor(1e12/floor(sum(in)/n)) (mean), tx 57dc83209774d9b51e8cd1a64310deae8f46d6608a240ab6e5d88628bdcf5ced.
+Rule (inferred from these two shapes): outputs > inputs > 1 -> mean form, else harmonic form; equal inputs make both coincide.
+kaspa-tx.js storageMass implements it. [TODO-verify] 3in/2out, 1in and other shapes.
+[TODO-verify] P2SH/covenant outputs (formula is value-only).
 Law: guards derive from the constraint they protect (storageMass()), never a round number.
 
 ## 5. Environment & Tooling

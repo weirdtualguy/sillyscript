@@ -66,10 +66,10 @@ they do.
 | `sil-encoder.js` | 51 | Sigscripts from ABI params; minimal arg pushes, explicit state pushes, columnar struct arrays. |
 | `kaspa-crypto.js` | 29 | CashAddr-variant bech32; KIP-20 covenant ID; P2SH/P2PK script public keys. |
 | `kaspa-sighash.js` | 14 | v1 sighash: keyed blake2b over the 16-field preimage with covenant bindings. |
-| `kaspa-tx.js` | 45 | Tx assembly (auto computeBudget 10/60), P2PK and covenant signing, mass/fee estimation. |
+| `kaspa-tx.js` | 47 | Tx assembly (auto computeBudget 10/60), P2PK and covenant signing, mass/fee estimation. |
 | `kaspa-wrpc.js` | 36 | wRPC broadcast: gauntlet-B4 schema, BigInt serialization, rotation on error and rejection. |
 
-**Total: 315 tests across 10 self-test modules** — `npm test` prints ten
+**Total: 317 tests across 10 self-test modules** — `npm test` prints ten
 `ALL n PASS` lines; their sum is the contract.
 
 ## The Scaffold — `silly init <name>`
