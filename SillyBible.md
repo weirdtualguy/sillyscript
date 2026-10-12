@@ -913,8 +913,8 @@ contract Escrow(pubkey recipient, pubkey sender, temporal timeout) {
 - Choreography: fund P2SH → claim anytime OR refund after `timeout`.
 - Pitfalls:
   - **Fee realism** `[LAW]`: the TUTORIAL Mecenas hardcodes `minerFee=1000`
-    and sub-dust outputs. Real constants: dust floor, mass-scaled fees
-    (pins §1.5/§4.5). Never copy tutorial economics.
+    and sub-dust outputs. Real constants: storage mass (limit 500000), mass-scaled fees
+    (pins §4.5/§4.9; no flat dust floor). Never copy tutorial economics.
   - CLTV domain: `tx.time` values ≥ LOCK_TIME_THRESHOLD (§2.4).
 - Proofs: claim before timeout ✓; refund before timeout ✗ (consensus CLTV
   rejects first — §1.6 layering); refund after ✓.
@@ -1195,7 +1195,7 @@ skipping a gate is how incidents are born.
 ### 7.1 Stage gates
 
 1. DESIGN      → archetype chosen (§6), boundary decided (§3.7),
-                 economics sanity-checked (dust/mass/fee floor — §1.5)
+                 economics sanity-checked (storage mass and fee, no flat dust floor — §4.5/§4.9)
 2. AUTHOR      → contract + args generator with validation at the only
                  writable entry point (E-1/F-M2 class: dead-series configs
                  rejected before genesis)
