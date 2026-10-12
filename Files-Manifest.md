@@ -48,7 +48,8 @@ they do.
     ├── validate-mainnet.js        covenant ID vs mainnet genesis
     ├── verify-schnorr-fixed.js    sighash + schnorr vs live mainnet genesis
     ├── gauntlet-v13.js            full vertical integration vs v13 artifact
-└── resolve-authindex.js     authIndex semantics vs chain truth (pins 3.2)
+    ├── resolve-authindex.js     authIndex semantics vs chain truth (pins 3.2)
+    └── dust-probe.js            TN10 storage-mass boundary probe (pins 4.9); dry run unless --go
 
 
 ## Modules — The Executable Layer
@@ -94,6 +95,7 @@ storage-mass check (pins §4.9, §11 S7).
 | `probes/dump-vector.js` | Freezes a chain-verified mainnet genesis into `test-vectors/`; writes nothing unless the covenant ID recomputes and the on-chain signature verifies. |
 | `test-vectors/mainnet-genesis-f6ebb717.json` | Frozen chain data: the sighash and covenant-ID anchors asserted by the kaspa-sighash and kaspa-crypto self-tests. |
 | `probes/gauntlet-v13.js` | Four-phase integration: load, sigscript build, mock tx assembly, verification. |
+| `probes/dust-probe.js` | TN10 storage-mass boundary probe: one P2PK self-send of `--amount` sompi, dry run unless `--go`; the evidence behind pins 4.9. |
 
 ## The Dependency Footprint
 
