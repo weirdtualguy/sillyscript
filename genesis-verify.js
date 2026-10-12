@@ -232,7 +232,9 @@ async function verifyGenesis(opts = {}) {
     let tmpArtifact = null;
     if (hasSource) {
         tmpArtifact = path.join(os.tmpdir(), `silly-verify-${process.pid}-${Date.now()}.json`);
-        const out = await compile(sourcePath, constructorArgs || [], tmpArtifact);
+        let out;
+        try { out = await compile(sourcePath, constructorArgs || [], tmpArtifact); }
+        catch (e) { try { fs.unlinkSync(tmpArtifact); } catch (e2) {} throw e; }  // verify-fail leaves the file silverc wrote
         artifactPathFinal = (typeof out === 'string' && out.length) ? out : tmpArtifact;
     }
     let contract;
