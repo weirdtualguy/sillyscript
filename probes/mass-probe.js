@@ -4,6 +4,8 @@
 // and reports its mass, so nothing is spent. A vector under the limit WOULD broadcast a real self-send (fee only).
 // Run from a directory holding the wallet .env (PC_NET, PC_PRIV), never from the repo:
 //   cd ~/lifecycle-test2 && node ~/sillyscript/probes/mass-probe.js --ins 1950000,195510000 --outs 700000 [--go]
+// --p2sh-out <i>: output i (index into --outs) pays a dummy P2SH hash (UNSPENDABLE if accepted); --go is refused unless
+// every predicted mass is over the limit, so the node rejects it.
 const fs = require('fs');
 const { schnorr } = require('@noble/curves/secp256k1');
 const { KaspaRestProvider, KaspaWrpcProvider, buildTx, signP2PKInput, p2pkSpk, p2pkAddress, pickUtxosSafe, txFee } = require('../index');
@@ -16,6 +18,10 @@ const parse = s => s.split(',').map(x => /^[0-9]+$/.test(x) ? BigInt(x) : die('b
 if (!opt('--ins') || !opt('--outs')) die('usage: node mass-probe.js --ins a,b --outs x[,y] [--fee n] [--go]');
 const INS = parse(opt('--ins')), OUTS = parse(opt('--outs'));
 const FEE = BigInt(opt('--fee') || '5000000');
+const PS = opt('--p2sh-out');
+if (PS !== null && (!/^[0-9]+$/.test(PS) || Number(PS) >= OUTS.length)) die('--p2sh-out must be an index into --outs');
+const P2SH_IDX = PS === null ? -1 : Number(PS);
+const P2SH_SPK = 'aa20' + '11'.repeat(32) + '87';
 const env = {};
 for (const l of fs.readFileSync('.env', 'utf8').split('\n')) {
   const t = l.trim(), e = t.indexOf('=');
@@ -52,8 +58,13 @@ const clamp = x => x > 0n ? x : 0n;
   console.log('pred arithmetic (repo):  ' + clamp(outTerm - (C * n * n) / sumIn));
   console.log('pred arithmetic (node):  ' + clamp(outTerm - n * (C / (sumIn / n))));
   console.log('pred harmonic:           ' + clamp(outTerm - sel.reduce((s, u) => s + C / u.amount, 0n)));
+  if (P2SH_IDX >= 0) {
+    console.log('output[' + P2SH_IDX + '] is P2SH (dummy hash): UNSPENDABLE if accepted.');
+    const preds = [clamp(outTerm - (C * n * n) / sumIn), clamp(outTerm - n * (C / (sumIn / n))), clamp(outTerm - sel.reduce((s, u) => s + C / u.amount, 0n))];
+    if (go && preds.some(p => p <= 500000n)) die('REFUSED: a predicted mass is within the limit; the tx could be accepted and burn the P2SH output.');
+  }
   const inputs = sel.map(u => ({ txId: u.txId, index: u.index, amount: u.amount, spk, sequence: 0n, sigOpCount: 0, computeBudget: 10 }));
-  const tx = buildTx(inputs, outAmts.map(a => ({ amount: a, script: spk })));
+  const tx = buildTx(inputs, outAmts.map((a, k) => ({ amount: a, script: k === P2SH_IDX ? P2SH_SPK : spk })));
   if (txFee(tx) !== FEE) die('FATAL: fee ' + txFee(tx) + ' != ' + FEE);
   for (let i = 0; i < inputs.length; i++) signP2PKInput(tx, i, privKey);
   if (!go) { console.log('DRY RUN - nothing sent.'); return; }

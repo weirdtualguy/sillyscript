@@ -489,7 +489,8 @@ probe cannot see one).
 3 in / 2 out (ins 1950000, 99900000, 195510000; outs 700000, 291660000) -> 1401735 = mean form, tx 09cf5b22910f776ec51386073a212a6d58dc783a4d36a1e0353c3bf0bb421038.
 Rule (inferred from three shapes): harmonic for 2 in / 2 out, mean form otherwise; equal inputs and 1 input make both coincide.
 kaspa-tx.js storageMass implements it; the mean form is the fallback for unverified shapes (never below the harmonic form). [TODO-verify] 1 out with 2+ inputs; 3+ in with 3+ out.
-[TODO-verify] P2SH/covenant outputs (formula is value-only).
+[PIN TN10 probe 2026-10-12] plain P2SH output: the 2 in / 2 out vector above with out[0] paying a P2SH script (aa20 + dummy 32-byte hash + 87) -> node mass 915851, identical to the P2PK run; mass is value-only for plain P2SH outputs. tx 19ef715eed648ad5928fd155efc73ade98d17432563c5f03bbc08271b5fdf4aa.
+[TODO-verify] covenant-bound outputs (needs a deploy-path probe with a tiny amount).
 Law: guards derive from the constraint they protect (storageMass()), never a round number.
 
 ## 5. Environment & Tooling
