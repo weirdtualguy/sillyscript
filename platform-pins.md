@@ -437,8 +437,9 @@ rejections. REST /utxos LAGS the mempool (ghost UTXOs). Always include
 sequence: 0 in hand-built input objects.
 
 [audit 2026-10-08] kaspa-tx.js pickUtxosSafe follows this rule (oldest first; static read).
-The production code described in 9.9 sorts largest-first. The two policies are
-unreconciled: [TODO-verify] which is right for storage mass, then keep exactly one.
+The production code described in 9.9 (Reliks) sorts largest-first; sillyscript keeps oldest-first.
+Decision 2026-10-12: separate codebases, kept apart by design. Selection order does not decide validity: the change
+guard in deploy/interact/close evaluates storageMass() on the final tx. No code change.
 
 ### 4.7 Confirmation gating [PIN]
 
@@ -608,7 +609,7 @@ LESS mass to spend. The orphan-window concern is handled by the confirmation
 gate (waitForConfirmation), not by UTXO selection order.
 
 Scope: this describes the Reliks production code. sillyscript's pickUtxosSafe sorts
-OLDEST first per 4.6 (audit 2026-10-08, static). Unreconciled; see 4.6.
+OLDEST first per 4.6 (audit 2026-10-08, static). Different from 9.9 by design (2026-10-12); see 4.6.
 
 This is itself a documentation-drift incident: the F-05 comment was never
 updated when the sort order changed. One topic, one place (dotk rule).
