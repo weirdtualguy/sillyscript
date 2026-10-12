@@ -426,6 +426,45 @@ module.exports = {
 // Self-test
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Broadcast that survives a lost response (ECONNRESET after the node accepted the tx). The caller's
+// record gets no txId from a throw, so recover it by observation: watch = { address, amount } is an
+// output this tx is certain to create. A new UTXO there counts only if its tx spends one of OUR inputs.
+// [TODO-verify] on a live dropped response; REST shows confirmed state only (window = tries x pollInterval).
+async function broadcastGuarded(wrpc, rest, tx, watch, opts = {}) {
+  const tries = opts.tries === undefined ? 8 : opts.tries;
+  const pollInterval = opts.pollInterval === undefined ? 3000 : opts.pollInterval;
+  const key = u => u.txId + ':' + u.index;
+  const own = new Set(tx.inputs.map(key));
+  let before = null;
+  if (watch) { try { before = new Set((await rest.getUtxos(watch.address)).map(key)); } catch (e) { before = null; } }
+  let err;
+  try {
+    const r = await wrpc.broadcast(tx);
+    if (r && r.txId) return r;
+    err = new Error('wRPC broadcast returned no txId' + (r && r.msg ? ': ' + r.msg : ''));
+  } catch (e) { err = e; }
+  if (before) {
+    for (let a = 0; a < tries; a++) {
+      await new Promise(r => setTimeout(r, pollInterval));
+      let list;
+      try { list = await rest.getUtxos(watch.address); } catch (e) { continue; }
+      for (const u of list) {
+        if (before.has(key(u)) || u.amount !== watch.amount) continue;
+        let t;
+        try { t = await rest.getTransaction(u.txId); } catch (e) { continue; }
+        const ins = (t && t.inputs) || [];
+        if (ins.some(i => own.has(i.previous_outpoint_hash + ':' + parseInt(i.previous_outpoint_index, 10)))) {
+          console.log('Recovered broadcast after: ' + err.message);
+          return { txId: u.txId, recovered: true };
+        }
+      }
+    }
+  }
+  err.message += ' | broadcast outcome UNKNOWN: check an explorer for this wallet address before re-running';
+  throw err;
+}
+module.exports.broadcastGuarded = broadcastGuarded;
+
 if (require.main === module && process.argv.includes('--test')) {
   let pass = 0, fail = 0;
   const t = (label, cond, detail) => {
@@ -541,6 +580,30 @@ if (require.main === module && process.argv.includes('--test')) {
         bp.readRetryScale = 0;
         try { await bp.broadcast({ transaction: {} }); } catch (e) { /* expected */ }
         t('broadcast is never retried', b === 1);
+        {
+          const O = { txId: 'ab'.repeat(32), index: 0 }, NEWID = 'cc'.repeat(32);
+          const gtx = { inputs: [O] };
+          const spends = { inputs: [{ previous_outpoint_hash: O.txId, previous_outpoint_index: '0' }] };
+          const foreign = { inputs: [{ previous_outpoint_hash: 'ee'.repeat(32), previous_outpoint_index: '0' }] };
+          const mkRest = (later, txBody) => { let n = 0; return { async getUtxos() { return n++ === 0 ? [] : later; }, async getTransaction() { return txBody; } }; };
+          const lost = { async broadcast() { throw new Error('ECONNRESET'); } };
+          const fast = { tries: 3, pollInterval: 1 };
+          const watch = { address: 'kaspatest:x', amount: 5n };
+          const found = [{ txId: NEWID, index: 0, amount: 5n }];
+          const ok = await broadcastGuarded({ async broadcast() { return { txId: 'aa'.repeat(32) }; } }, mkRest(found, spends), gtx, watch, fast);
+          t('guarded broadcast passes a normal result through', ok.txId === 'aa'.repeat(32) && !ok.recovered);
+          const rec = await broadcastGuarded(lost, mkRest(found, spends), gtx, watch, fast);
+          t('lost response is recovered when the new UTXO spends our input', rec.txId === NEWID && rec.recovered === true);
+          let m1 = '';
+          try { await broadcastGuarded(lost, mkRest(found, foreign), gtx, watch, fast); } catch (e) { m1 = e.message; }
+          t('a new UTXO that does not spend our input is not adopted', /UNKNOWN/.test(m1));
+          let m2 = '';
+          try { await broadcastGuarded(lost, mkRest([], spends), gtx, watch, fast); } catch (e) { m2 = e.message; }
+          t('nothing observed -> outcome UNKNOWN, original error kept', /UNKNOWN/.test(m2) && /ECONNRESET/.test(m2));
+          let m3 = '';
+          try { await broadcastGuarded(lost, { async getUtxos() { throw new Error('x'); } }, gtx, watch, fast); } catch (e) { m3 = e.message; }
+          t('no snapshot -> no recovery attempt', /UNKNOWN/.test(m3));
+        }
       }
     }
 

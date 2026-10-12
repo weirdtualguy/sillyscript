@@ -14,7 +14,7 @@ const path = require('path');
 const {
     Contract, KaspaRestProvider, KaspaWrpcProvider,
     buildTx, signP2PKInput, setGenesisCovenant, p2pkSpk, pickUtxosSafe, txFee,
-    storageMass, STORAGE_MASS_LIMIT
+    storageMass, STORAGE_MASS_LIMIT, broadcastGuarded
 } = require('sillyscript');
 const { compile } = require('sillyscript/silly-compile');
 const {
@@ -124,7 +124,7 @@ async function main() {
     // ── 6. Broadcast via wRPC (testnet REST drops compute_budget) ──
     console.log('\nBroadcasting...');
     const wrpc = new KaspaWrpcProvider(net);
-    const result = await wrpc.broadcast(tx);
+    const result = await broadcastGuarded(wrpc, rest, tx, { address: contract.address, amount: CARRIER });
     console.log('Broadcast: ' + result.txId);
 
     // ── 7. Record with pending marker (crash-safety), then confirm ──

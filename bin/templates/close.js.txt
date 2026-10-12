@@ -12,7 +12,7 @@ const {
     Contract, KaspaRestProvider, KaspaWrpcProvider,
     buildTx, signP2PKInput, signCovenantInput,
     pickUtxosSafe, txFee, p2pkSpk,
-    storageMass, STORAGE_MASS_LIMIT
+    storageMass, STORAGE_MASS_LIMIT, broadcastGuarded
 } = require('sillyscript');
 const {
     loadEnv, loadRecord, saveRecord, decodeState,
@@ -119,7 +119,7 @@ async function main() {
     // ── 5. Broadcast via wRPC ──
     console.log('\n-- Broadcasting --');
     const wrpc = new KaspaWrpcProvider(net);
-    const result = await wrpc.broadcast(tx);
+    const result = await broadcastGuarded(wrpc, rest, tx, { address: address, amount: covUtxo.amount });
     console.log('Broadcast: ' + result.txId);
 
     record.pending = { txId: result.txId, closeTx: true };

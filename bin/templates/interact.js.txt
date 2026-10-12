@@ -20,7 +20,7 @@ const {
     buildTx, signP2PKInput, signCovenantInput,
     setContinuationCovenant, p2pkSpk, p2shSpk,
     pickUtxosSafe, txFee,
-    storageMass, STORAGE_MASS_LIMIT
+    storageMass, STORAGE_MASS_LIMIT, broadcastGuarded
 } = require('sillyscript');
 const {
     loadEnv, loadRecord, saveRecord, decodeState, encodeState,
@@ -144,7 +144,7 @@ async function main() {
     // ── 7. Broadcast via wRPC ──
     console.log('\n-- Broadcasting --');
     const wrpc = new KaspaWrpcProvider(net);
-    const result = await wrpc.broadcast(tx);
+    const result = await broadcastGuarded(wrpc, rest, tx, outputs.length > 1 ? { address: address, amount: changeAmount } : null);
     console.log('Broadcast: ' + result.txId);
 
     // Crash-safety: persist the pointer BEFORE waiting. If this run dies,

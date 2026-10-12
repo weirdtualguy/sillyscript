@@ -77,6 +77,7 @@ module.exports = {
   proactiveFee: tx.proactiveFee,
   storageMass: tx.storageMass,
   STORAGE_MASS_LIMIT: tx.STORAGE_MASS_LIMIT,
+  broadcastGuarded: require('./provider').broadcastGuarded,
   SEQUENCE_DISABLE: tx.SEQUENCE_DISABLE,
   NETWORKS,
 };
