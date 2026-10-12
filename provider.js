@@ -157,6 +157,23 @@ class KaspaRestProvider extends Provider {
     }, opts.headers || {});
 
     this.fetchFn = opts.fetch || globalThis.fetch;
+    // Read-only GET with bounded retry on network faults (ECONNRESET etc.). HTTP statuses are never
+    // retried here and broadcast never uses this. The underlying cause is surfaced (it was hidden
+    // behind "fetch failed"). [PIN TN10 2026-10-11] fresh connections dropped intermittently.
+    this.readRetryScale = 1;
+    this._read = async (url, init) => {
+      const tries = 6;
+      let last;
+      for (let a = 1; a <= tries; a++) {
+        try { return await this.fetchFn(url, init); }
+        catch (e) {
+          last = e;
+          if (a < tries) await new Promise(r => setTimeout(r, Math.min(500 * 2 ** (a - 1), 4000) * this.readRetryScale));
+        }
+      }
+      const c = last && last.cause ? ' (' + (last.cause.code || last.cause.message) + ')' : '';
+      throw new Error('KaspaRestProvider: read ' + url.replace(/^https?:\/\/[^/]+/, '') + ' failed after ' + tries + ' attempts: ' + last.message + c);
+    };
     if (!this.fetchFn && typeof fetch !== 'undefined') {
       this.fetchFn = fetch;
     }
@@ -164,7 +181,7 @@ class KaspaRestProvider extends Provider {
 
   async getUtxos(address, { minAmount = 0n } = {}) {
     if (!this.fetchFn) throw new Error('KaspaRestProvider: fetch is not available in environment');
-    const res = await this.fetchFn(`${this.url}/addresses/${address}/utxos`, {
+    const res = await this._read(`${this.url}/addresses/${address}/utxos`, {
       headers: this.headers,
     });
     if (!res.ok) throw new Error(`KaspaRestProvider: getUtxos failed (REST HTTP ${res.status})`);
@@ -204,9 +221,10 @@ class KaspaRestProvider extends Provider {
     return { txId };
   }
 
-  async getTransaction(txId) {
+  async getTransaction(txId, { retry = true } = {}) {
     if (!this.fetchFn) throw new Error('KaspaRestProvider: fetch is not available in environment');
-    const res = await this.fetchFn(`${this.url}/transactions/${txId}`, {
+    // waitForConfirmation polls on its own bounded loop: it must not stack retries (retry: false)
+    const res = await (retry ? this._read : this.fetchFn.bind(this))(`${this.url}/transactions/${txId}`, {
       headers: this.headers,
     });
     if (res.status === 404) return null;
@@ -219,7 +237,7 @@ class KaspaRestProvider extends Provider {
     let lastErr = null, notAccepted = false;
     while (Date.now() - start < timeout) {
       try {
-        const tx = await this.getTransaction(txId);
+        const tx = await this.getTransaction(txId, { retry: false });
         if (tx) {
           const blockHashes = tx.block_hashes || tx.blockHashes ||
             (tx.accepting_block_hash ? [tx.accepting_block_hash] : []);
@@ -501,6 +519,29 @@ if (require.main === module && process.argv.includes('--test')) {
       let msgD = '';
       try { await wait(async () => { throw new Error('boom'); }, { timeout: 40, pollInterval: 5 }); } catch (e) { msgD = e.message; }
       t('timeout reports the last underlying error', /last error: boom/.test(msgD));
+      {
+        const netErr = () => { const e = new Error('fetch failed'); e.cause = { code: 'ECONNRESET' }; return e; };
+        let n = 0;
+        const flaky = new KaspaRestProvider('testnet', { fetch: async () => { if (++n < 3) throw netErr(); return { status: 200, ok: true, json: async () => [] }; } });
+        flaky.readRetryScale = 0;
+        const u = await flaky.getUtxos('kaspatest:x');
+        t('getUtxos retries transient network faults', Array.isArray(u) && n === 3);
+        let m = 0, msg = '';
+        const dead = new KaspaRestProvider('testnet', { fetch: async () => { m++; throw netErr(); } });
+        dead.readRetryScale = 0;
+        try { await dead.getUtxos('kaspatest:x'); } catch (e) { msg = e.message; }
+        t('read retries are bounded and name the cause', m === 6 && /ECONNRESET/.test(msg) && /6 attempts/.test(msg));
+        let h = 0;
+        const bad = new KaspaRestProvider('testnet', { fetch: async () => { h++; return { status: 500, ok: false }; } });
+        bad.readRetryScale = 0;
+        try { await bad.getUtxos('kaspatest:x'); } catch (e) { /* expected */ }
+        t('HTTP errors are not retried', h === 1);
+        let b = 0;
+        const bp = new KaspaRestProvider('testnet', { fetch: async () => { b++; throw netErr(); } });
+        bp.readRetryScale = 0;
+        try { await bp.broadcast({ transaction: {} }); } catch (e) { /* expected */ }
+        t('broadcast is never retried', b === 1);
+      }
     }
 
     // toRestFormat refuses sequences REST cannot carry exactly (audit S19)

@@ -58,7 +58,7 @@ they do.
 | `genesis-verify.js` | 21 | Genesis verification: source/artifact vs on-chain covenant — state/script/consensus layers, chain-read covenant_id as the verdict source (19 core + 2 chain-anchored Counter positives, active when counter-abi.json is present). Deferred: UTXO-lookup genesis discovery (Path B); heterogeneous covenant groups report per-output detail under ALL-match strictness. |
 | `index.js` | — | Unified package entrypoint: Contract, Provider, generateTypes, primitives. |
 | `contract.js` | 33 | High-level Contract: state reflection, arg normalization, next-state derivation, input population, continuation binding. |
-| `provider.js` | 36 | Abstract Provider, KaspaRestProvider (mainnet/testnet), MockProvider with UTXO tracking and block simulation. |
+| `provider.js` | 40 | Abstract Provider, KaspaRestProvider (mainnet/testnet), MockProvider with UTXO tracking and block simulation. |
 | `silly-compile.js` | 21 | silverc invocation, constructor-arg baking, fail-closed artifact verification gates. |
 | `silly-typegen.js` | 17 | TypeScript declaration generator: typed state, entry args, tuples, Contract classes. |
 | `sil-abi.js` | — | Artifact loader; derives and asserts dispatch tags; verifies template hashes; decodes state. Verified via consumers and silly check. |
@@ -68,7 +68,7 @@ they do.
 | `kaspa-tx.js` | 45 | Tx assembly (auto computeBudget 10/60), P2PK and covenant signing, mass/fee estimation. |
 | `kaspa-wrpc.js` | 36 | wRPC broadcast: gauntlet-B4 schema, BigInt serialization, rotation on error and rejection. |
 
-**Total: 303 tests across 10 self-test modules** — `npm test` prints ten
+**Total: 307 tests across 10 self-test modules** — `npm test` prints ten
 `ALL n PASS` lines; their sum is the contract.
 
 ## The Scaffold — `silly init <name>`
