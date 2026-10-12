@@ -78,6 +78,9 @@ function toArtifactValue(val) {
     if (typeof val === 'string' && val.length > 0 && val.length % 2 === 0 && /^[0-9a-fA-F]+$/.test(val)) {
         return { kind: 'bytes', value: Array.from(Buffer.from(val, 'hex')) };
     }
+    if (val && typeof val === 'object' && !Array.isArray(val) && val.kind === 'text' && typeof val.value === 'string') {
+        return { kind: 'text', value: val.value };   // explicit text: bypasses the hex-looking-string heuristic
+    }
     if (typeof val === 'string') {
         return { kind: 'text', value: val };
     }
@@ -294,6 +297,8 @@ function selfTest() {
     t('bigint -(2^53) rejected', thrC(() => toArtifactValue(-(2n ** 53n))));
     t('number 2^53 rejected', thrC(() => toArtifactValue(2 ** 53)));
     t('61-bit serial rejected, not rounded', thrC(() => toArtifactValue((1n << 61n) + 1n)));
+    t('{kind:text} keeps hex-looking text as text', JSON.stringify(toArtifactValue({ kind: 'text', value: 'abcd' })) === '{"kind":"text","value":"abcd"}');
+    t('{kind:text} with a non-string value rejected', thrC(() => toArtifactValue({ kind: 'text', value: 5 })));
     t('object preserves order', JSON.stringify(buildArgs({ a: 1, b: true })) === '[{"kind":"int","value":1},{"kind":"bool","value":true}]');
 
     // Object args warning: insertion order = constructor order

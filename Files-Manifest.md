@@ -60,7 +60,7 @@ they do.
 | `index.js` | — | Unified package entrypoint: Contract, Provider, generateTypes, primitives. |
 | `contract.js` | 33 | High-level Contract: state reflection, arg normalization, next-state derivation, input population, continuation binding. |
 | `provider.js` | 45 | Abstract Provider, KaspaRestProvider (mainnet/testnet), MockProvider with UTXO tracking and block simulation. |
-| `silly-compile.js` | 21 | silverc invocation, constructor-arg baking, fail-closed artifact verification gates. |
+| `silly-compile.js` | 23 | silverc invocation, constructor-arg baking, fail-closed artifact verification gates. |
 | `silly-typegen.js` | 17 | TypeScript declaration generator: typed state, entry args, tuples, Contract classes. |
 | `sil-abi.js` | — | Artifact loader; derives and asserts dispatch tags; verifies template hashes; decodes state. Verified via consumers and silly check. |
 | `sil-encoder.js` | 51 | Sigscripts from ABI params; minimal arg pushes, explicit state pushes, columnar struct arrays. |
@@ -69,7 +69,7 @@ they do.
 | `kaspa-tx.js` | 45 | Tx assembly (auto computeBudget 10/60), P2PK and covenant signing, mass/fee estimation. |
 | `kaspa-wrpc.js` | 36 | wRPC broadcast: gauntlet-B4 schema, BigInt serialization, rotation on error and rejection. |
 
-**Total: 312 tests across 10 self-test modules** — `npm test` prints ten
+**Total: 314 tests across 10 self-test modules** — `npm test` prints ten
 `ALL n PASS` lines; their sum is the contract.
 
 ## The Scaffold — `silly init <name>`
