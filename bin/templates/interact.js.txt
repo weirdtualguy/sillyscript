@@ -144,7 +144,11 @@ async function main() {
     // ── 7. Broadcast via wRPC ──
     console.log('\n-- Broadcasting --');
     const wrpc = new KaspaWrpcProvider(net);
-    const result = await broadcastGuarded(wrpc, rest, tx, outputs.length > 1 ? { address: address, amount: changeAmount } : null);
+    // Recovery watch: wallet change if created, else the next-state carrier (always created; its tx spends our covenant input).
+    const nextAddr = contract.nextAddress(nextState);
+    const watch = outputs.length > 1 ? { address: address, amount: changeAmount }
+        : (nextAddr.split(':')[0] === address.split(':')[0] ? { address: nextAddr, amount: carrierAmount } : null);
+    const result = await broadcastGuarded(wrpc, rest, tx, watch);
     console.log('Broadcast: ' + result.txId);
 
     // Crash-safety: persist the pointer BEFORE waiting. If this run dies,
