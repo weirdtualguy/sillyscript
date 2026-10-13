@@ -50,16 +50,21 @@ function estimateMass(tx) {
 // [PIN] TN10 2026-10-12, unequal inputs: 2in/2out node mass 915851 = sum(floor(C/in)) (harmonic);
 // 2in/3out 1085254 and 3in/2out 1401735 = n*floor(C/floor(sum(in)/n)) (mean). Harmonic only for 2in/2out;
 // every other shape uses the mean form (never below the harmonic form, so unverified shapes over-estimate).
+// [PIN] TN10 2026-10-12: a covenant-bound output weighs 4x (floor(4C/amount)) and forces the mean form (2in/2out:
+// 5699243 at 700000, 4429408 at 900000). Plain P2SH outputs are value-only. Covenant carriers carry covenant: null before binding.
 // [TODO-verify] consensus vs mempool layer of the limit; 1-output multi-input and larger shapes.
 const STORAGE_MASS_C = 1000000000000n;
 const STORAGE_MASS_LIMIT = 500000n;
+const STORAGE_MASS_COV_WEIGHT = 4n;
 function storageMass(inputs, outputs) {
     if (!inputs || !outputs || inputs.length === 0 || outputs.length === 0)
         throw new Error('storageMass: need at least one input and one output');
-    let outTerm = 0n, sumIn = 0n, inHarm = 0n;
+    let outTerm = 0n, sumIn = 0n, inHarm = 0n, hasCov = false;
     for (const o of outputs) {
         if (typeof o.amount !== 'bigint' || o.amount <= 0n) throw new Error('storageMass: output amount must be a positive BigInt');
-        outTerm += STORAGE_MASS_C / o.amount;
+        const isCov = o.covenant !== undefined;   // covenant: null marks a carrier before binding
+        if (isCov) hasCov = true;
+        outTerm += (isCov ? STORAGE_MASS_COV_WEIGHT * STORAGE_MASS_C : STORAGE_MASS_C) / o.amount;
     }
     for (const i of inputs) {
         if (typeof i.amount !== 'bigint' || i.amount <= 0n) throw new Error('storageMass: input amount must be a positive BigInt');
@@ -67,7 +72,7 @@ function storageMass(inputs, outputs) {
         inHarm += STORAGE_MASS_C / i.amount;
     }
     const n = BigInt(inputs.length);
-    const inTerm = (inputs.length === 2 && outputs.length === 2) ? inHarm : n * (STORAGE_MASS_C / (sumIn / n));
+    const inTerm = (inputs.length === 2 && outputs.length === 2 && !hasCov) ? inHarm : n * (STORAGE_MASS_C / (sumIn / n));
     const m = outTerm - inTerm;
     return m > 0n ? m : 0n;
 }
@@ -422,6 +427,9 @@ if (require.main === module && process.argv.includes('--test')) {
             const uIn = [{ amount: 1950000n }, { amount: 195510000n }];
             t('storage mass 2in/2out unequal = 915851 (node-reported)', storageMass(uIn, mOut(700000n, 191760000n)) === 915851n);
             t('storage mass 3in/2out unequal = 1401735 (node-reported)', storageMass([{ amount: 1950000n }, { amount: 99900000n }, { amount: 195510000n }], mOut(700000n, 291660000n)) === 1401735n);
+            t('storage mass covenant 700000 = 5699243 (node-reported)', storageMass(uIn, [{ amount: 700000n, covenant: null }, { amount: 191760000n }]) === 5699243n);
+            t('storage mass covenant 900000 = 4429408 (node-reported)', storageMass(uIn, [{ amount: 900000n, covenant: null }, { amount: 191560000n }]) === 4429408n);
+            t('storage mass covenant: bound object weighs the same as null', storageMass(uIn, [{ amount: 700000n, covenant: { authorizingInput: 0, covenantId: '77'.repeat(32) } }, { amount: 191760000n }]) === 5699243n);
             t('storage mass 2in/3out unequal = 1085254 (node-reported)', storageMass(uIn, [{ amount: 1000000n }, { amount: 10000000n }, { amount: 181460000n }]) === 1085254n);
         }
         const tx = {

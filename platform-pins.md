@@ -490,7 +490,12 @@ probe cannot see one).
 Rule (inferred from three shapes): harmonic for 2 in / 2 out, mean form otherwise; equal inputs and 1 input make both coincide.
 kaspa-tx.js storageMass implements it; the mean form is the fallback for unverified shapes (never below the harmonic form). [TODO-verify] 1 out with 2+ inputs; 3+ in with 3+ out.
 [PIN TN10 probe 2026-10-12] plain P2SH output: the 2 in / 2 out vector above with out[0] paying a P2SH script (aa20 + dummy 32-byte hash + 87) -> node mass 915851, identical to the P2PK run; mass is value-only for plain P2SH outputs. tx 19ef715eed648ad5928fd155efc73ade98d17432563c5f03bbc08271b5fdf4aa.
-[TODO-verify] covenant-bound outputs (needs a deploy-path probe with a tiny amount).
+[PIN TN10 probe 2026-10-12] covenant-bound output (same 2 in / 2 out inputs; out[0] = P2SH dummy hash + genesis binding via setGenesisCovenant), both rejected:
+out[0] 700000 -> node mass 5699243, tx 77b576d178d45497a589e46f51260055a54cb61a8d8fc913f4fae3e4df7139f2.
+out[0] 900000 -> node mass 4429408, tx e912f7e90fa4c27f4708796089f03bd9bb2a7fe624813883dcb8e902cbebd634.
+Both fit: the covenant-bound output weighs floor(4*1e12/amount) and the input term is the mean form (not harmonic).
+kaspa-tx.js storageMass implements it; marker is covenant !== undefined, so carriers carry covenant: null before binding.
+[TODO-verify] covenant shapes beyond 2 in / 2 out; whether the 4x is per binding or per covenant output; continuation (setContinuationCovenant) outputs.
 Law: guards derive from the constraint they protect (storageMass()), never a round number.
 
 ## 5. Environment & Tooling

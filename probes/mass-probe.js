@@ -6,6 +6,7 @@
 //   cd ~/lifecycle-test2 && node ~/sillyscript/probes/mass-probe.js --ins 1950000,195510000 --outs 700000 [--go]
 // --p2sh-out <i>: output i (index into --outs) pays a dummy P2SH hash (UNSPENDABLE if accepted); --go is refused unless
 // every predicted mass is over the limit, so the node rejects it.
+// --covenant-out <i>: also binds a genesis covenant to output i (must equal --p2sh-out), as deploy does.
 const fs = require('fs');
 const { schnorr } = require('@noble/curves/secp256k1');
 const { KaspaRestProvider, KaspaWrpcProvider, buildTx, signP2PKInput, p2pkSpk, p2pkAddress, pickUtxosSafe, txFee } = require('../index');
@@ -22,6 +23,9 @@ const PS = opt('--p2sh-out');
 if (PS !== null && (!/^[0-9]+$/.test(PS) || Number(PS) >= OUTS.length)) die('--p2sh-out must be an index into --outs');
 const P2SH_IDX = PS === null ? -1 : Number(PS);
 const P2SH_SPK = 'aa20' + '11'.repeat(32) + '87';
+const CV = opt('--covenant-out');
+if (CV !== null && (!/^[0-9]+$/.test(CV) || Number(CV) !== P2SH_IDX)) die('--covenant-out must equal --p2sh-out');
+const COV_IDX = CV === null ? -1 : Number(CV);
 const env = {};
 for (const l of fs.readFileSync('.env', 'utf8').split('\n')) {
   const t = l.trim(), e = t.indexOf('=');
@@ -64,7 +68,12 @@ const clamp = x => x > 0n ? x : 0n;
     if (go && preds.some(p => p <= 500000n)) die('REFUSED: a predicted mass is within the limit; the tx could be accepted and burn the P2SH output.');
   }
   const inputs = sel.map(u => ({ txId: u.txId, index: u.index, amount: u.amount, spk, sequence: 0n, sigOpCount: 0, computeBudget: 10 }));
-  const tx = buildTx(inputs, outAmts.map((a, k) => ({ amount: a, script: k === P2SH_IDX ? P2SH_SPK : spk })));
+  const tx = buildTx(inputs, outAmts.map((a, k) => ({ amount: a, script: k === P2SH_IDX ? P2SH_SPK : spk, ...(k === COV_IDX ? { covenant: null } : {}) })));
+  if (COV_IDX >= 0) {
+    const sgc = require('../index').setGenesisCovenant;
+    if (typeof sgc !== 'function') die('setGenesisCovenant is not exported by ../index');
+    console.log('Covenant ID: ' + sgc(tx, COV_IDX, 0));
+  }
   if (txFee(tx) !== FEE) die('FATAL: fee ' + txFee(tx) + ' != ' + FEE);
   for (let i = 0; i < inputs.length; i++) signP2PKInput(tx, i, privKey);
   if (!go) { console.log('DRY RUN - nothing sent.'); return; }

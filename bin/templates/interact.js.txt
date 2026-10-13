@@ -105,7 +105,7 @@ async function main() {
     const changeAmount = totalInput - WALLET_FEE;
     const nextRedeem = contract.buildRedeem(nextState);
     const outputs = [
-        { amount: carrierAmount, script: p2shSpk(nextRedeem).toString('hex') },
+        { amount: carrierAmount, script: p2shSpk(nextRedeem).toString('hex'), covenant: null },
     ];
     if (changeAmount > 0n && storageMass(inputs, outputs.concat([{ amount: changeAmount }])) <= STORAGE_MASS_LIMIT) {
         outputs.push({ amount: changeAmount, script: p2pkSpk(pubKey).toString('hex') });
