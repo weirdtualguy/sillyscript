@@ -1,0 +1,11 @@
+buildTx WARNING: output[0] = 10000000 sompi is below 1 KAS dust guidance
+network:  testnet
+address:  kaspatest:qqelufw3s9rqemzktcyvamuqwcwzewvs6k2lgvvn5rrkydasm8xxssk52j3kd
+inputs:   2 (200000000 sompi)
+probe:    out[0] = 10000000 sompi (P2PK, self)
+change:   out[1] = 186900000 sompi
+fee:      3100000 sompi
+
+Broadcasting...
+RESULT: ACCEPTED txId 6b8f2e5501caa27389d3c3ab07527a070cb2c79365c677112f8cc649d9f0c407
+CONFIRMED block 470eebfbbdeab50bb0825f678aee4d2237bae6a9c259e0046af604a612287e19 accepted=true

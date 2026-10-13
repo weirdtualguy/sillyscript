@@ -1,0 +1,12 @@
+buildTx WARNING: output[0] = 1900000 sompi is below 1 KAS dust guidance
+network:  testnet
+address:  kaspatest:qqelufw3s9rqemzktcyvamuqwcwzewvs6k2lgvvn5rrkydasm8xxssk52j3kd
+inputs:   2 (200000000 sompi)
+probe:    out[0] = 1900000 sompi (P2PK, self)
+change:   out[1] = 195000000 sompi
+fee:      3100000 sompi
+
+Broadcasting...
+RESULT: REJECTED (thrown)
+MESSAGE: KaspaWrpcProvider: wRPC broadcast failed: Rejected transaction b55e1a0b7d58c1788040fe59d8e7228ba75e841ab52b669a463e423a0350034e: transaction storage mass of 511443 is larger than max allowed size of 500000
+Classify layer (consensus vs mempool policy) from this text before concluding.
