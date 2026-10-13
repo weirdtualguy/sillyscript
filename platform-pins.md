@@ -495,7 +495,11 @@ out[0] 700000 -> node mass 5699243, tx 77b576d178d45497a589e46f51260055a54cb61a8
 out[0] 900000 -> node mass 4429408, tx e912f7e90fa4c27f4708796089f03bd9bb2a7fe624813883dcb8e902cbebd634.
 Both fit: the covenant-bound output weighs floor(4*1e12/amount) and the input term is the mean form (not harmonic).
 kaspa-tx.js storageMass implements it; marker is covenant !== undefined, so carriers carry covenant: null before binding.
-[TODO-verify] covenant shapes beyond 2 in / 2 out; whether the 4x is per binding or per covenant output; continuation (setContinuationCovenant) outputs.
+Continuation probe [2026-10-12, INCONCLUSIVE]: out[0] bound with setContinuationCovenant and a dummy covenant ID was rejected by the covenant check, not by mass:
+"input #0 and outputs with covenant id 77..77 do not correspond to the expected genesis hashing", tx bef7e6117c20ee134514b5b4bd3042b1718e889ace9cdf8f25b58f81bbae7455.
+So the node validates covenant bindings before the storage-mass limit, and a continuation probe needs a live covenant UTXO as input 0 carrying the same ID.
+storageMass() applies the 4x weight to continuation carriers by assumption (over-estimates if they are value-only; the cost is a burned change under about 0.02 KAS).
+[TODO-verify] covenant shapes beyond 2 in / 2 out; whether the 4x is per binding or per covenant output; continuation carrier weight (needs a live covenant UTXO).
 Law: guards derive from the constraint they protect (storageMass()), never a round number.
 
 ## 5. Environment & Tooling
