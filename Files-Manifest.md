@@ -5,11 +5,12 @@ The single owner of per-module test counts. Every verification gate
 count-free and points HERE. Counts drift; this file is regenerated when
 they do.
 
+```text
 ~/sillyscript/
 ├── .gitignore                     node_modules/, *.bak*, session artifacts
 ├── package.json                   npm manifest: @noble/hashes ^1.4.0, @noble/curves ^1.6.0
 │
-├── SillyBible.md                 THE CANON — mental model, covenant mechanics, pattern catalog
+├── SillyBible.md                  THE CANON — mental model, covenant mechanics, pattern catalog
 ├── platform-pins.md               THE FACTS — graded protocol pins, codec rules, incident registry
 ├── master-prompt.md               THE BOOT SECTOR — session load order + count-free gate
 ├── SAFETY.md                      THE STRATEGY — mainnet-first rails, fee/wallet limits
@@ -28,12 +29,12 @@ they do.
 ├── kaspa-sighash.js               SIGHASH 4: v1 signing hash (covenant commitments)
 ├── kaspa-tx.js                    TX 5: tx builder, computeBudget assignment, mass/fee
 ├── kaspa-wrpc.js                  NETWORK 6: wRPC broadcast, endpoint rotation, gauntlet-B4
-├── genesis-verify.js           GENESIS VERIFY: source/artifact vs on-chain covenant
+├── genesis-verify.js              GENESIS VERIFY: source/artifact vs on-chain covenant
 │
 ├── vesting.sil                    REFERENCE CONTRACT: vesting escrow source
 ├── vesting.json                   REFERENCE ARTIFACT: compiled JSON
 ├── vesting.d.ts                   REFERENCE TYPES: generated declarations
-├── counter-abi.json              REFERENCE ARTIFACT: Counter — chain-verified testnet-10 deploy (genesis bd4085b1…, pins 3.3b)
+├── counter-abi.json               REFERENCE ARTIFACT: Counter — chain-verified testnet-10 deploy (genesis bd4085b1…, pins 3.3b)
 │
 ├── bin/
 │   ├── silly.js                   CLI: setup / init / check (check parses all templates)
@@ -43,14 +44,17 @@ they do.
 │       ├── interact.js.txt        state transition (record-driven, re-runnable)
 │       └── close.js.txt           termination (budget 60, full carrier to owner)
 │
+├── test-vectors/                  FROZEN CHAIN DATA: mainnet genesis anchors for the sighash and covenant-ID self-tests
 └── probes/                        VERIFICATION LAYER
     ├── verify-tags.js             dispatch-tag + template-hash conformance sweep
     ├── validate-mainnet.js        covenant ID vs mainnet genesis
     ├── verify-schnorr-fixed.js    sighash + schnorr vs live mainnet genesis
     ├── gauntlet-v13.js            full vertical integration vs v13 artifact
-    ├── resolve-authindex.js     authIndex semantics vs chain truth (pins 3.2)
-    ├── mass-probe.js            TN10 mixed-input storage-mass shape probe (pins 4.9); dry run unless --go
-    └── dust-probe.js            TN10 storage-mass boundary probe (pins 4.9); dry run unless --go
+    ├── dump-vector.js             freeze a chain-verified mainnet genesis into test-vectors/
+    ├── resolve-authindex.js       authIndex semantics vs chain truth (pins 3.2)
+    ├── mass-probe.js              TN10 mixed-input storage-mass shape probe (pins 4.9); dry run unless --go
+    └── dust-probe.js              TN10 storage-mass boundary probe (pins 4.9); dry run unless --go
+```
 
 
 ## Modules — The Executable Layer
@@ -84,6 +88,8 @@ lifecycle scripts copied verbatim from `bin/templates/`.
 interact ×2 (the second an UNMODIFIED re-run) → close from elevated state
 (count=2n). Citations in pins §3.3b. Resolved 2026-10-11: the 100M change guard was replaced by a
 storage-mass check (pins §4.9, §11 S7).
+Re-verified 2026-10-13 on commit 1c0be13: deploy e9ccb5565be8848b, interact 1b5eec118979cf62, close e2bd1e16acf5e63f (covenant c1e7ad7800367a76).
+The check weighs covenant-bound outputs 4x and handles unequal inputs (pins §4.9).
 
 ## Probes — The Verification Layer
 
@@ -96,13 +102,15 @@ storage-mass check (pins §4.9, §11 S7).
 | `probes/dump-vector.js` | Freezes a chain-verified mainnet genesis into `test-vectors/`; writes nothing unless the covenant ID recomputes and the on-chain signature verifies. |
 | `test-vectors/mainnet-genesis-f6ebb717.json` | Frozen chain data: the sighash and covenant-ID anchors asserted by the kaspa-sighash and kaspa-crypto self-tests. |
 | `probes/gauntlet-v13.js` | Four-phase integration: load, sigscript build, mock tx assembly, verification. |
-| `probes/mass-probe.js` | TN10 storage-mass shape probe: `--ins` picks wallet UTXOs by exact amount, `--outs` sets outputs, prints the repo, node-style and harmonic predictions; use vectors over the 500000 limit so the node rejects them and reports its mass; dry run unless `--go`; the evidence behind pins 4.9 (unequal inputs). |
+| `probes/mass-probe.js` | TN10 storage-mass shape probe: `--ins` picks wallet UTXOs by exact amount, `--outs` sets outputs, prints the repo, node-style and harmonic predictions; use vectors over the 500000 limit so the node rejects them and reports its mass; dry run unless `--go`; the evidence behind pins 4.9 (unequal inputs, P2SH and covenant outputs). `--p2sh-out <i>` and `--covenant-out <i>` make output i a plain P2SH or a genesis-bound one. |
 | `probes/dust-probe.js` | TN10 storage-mass boundary probe: one P2PK self-send of `--amount` sompi, dry run unless `--go`; the evidence behind pins 4.9. |
 
 ## The Dependency Footprint
 
+```text
 @noble/hashes ^1.4.0     blake2b, blake3
 @noble/curves ^1.6.0     schnorr (secp256k1)
+```
 
 Two packages, zero WASM, pure JavaScript. Node and Termux proven; the
 browser claim awaits the isomorphic (Uint8Array) pass — README audit item.
@@ -113,5 +121,5 @@ browser claim awaits the isomorphic (Uint8Array) pass — README audit item.
   history and strays; the default would ship everything. Must include
   `bin/` and `bin/templates/` or the scaffold ships broken.
 - noble pinned to 1.x — v2 subpath exports are incompatible (pins §5.3).
-- silverc revision dependency: c7d17a1 proven (pins §1.6) — document in
-  README during the docs audit.
+- silverc revision dependency: c7d17a1 proven (pins §1.6) — documented in
+  the README.

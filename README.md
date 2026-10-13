@@ -33,6 +33,7 @@ recompile and re-verify canonical contracts on any upgrade.
 
 ## The Scaffold (start here)
 
+```bash
 node bin/silly.js setup      # once: Rust + silverc from source (Termux)
 node bin/silly.js init foo   # scaffold: contract + lifecycle + .env
 cd foo && npm install
@@ -40,6 +41,7 @@ cd foo && npm install
 npm run deploy               # compile + genesis  -> data/deployment.json
 npm run interact             # advance state (re-runnable: record-driven)
 npm run close                # terminate, carrier returned to owner
+```
 
 (Once published, `npx silly …` works — the `bin` field is registered.)
 
@@ -56,11 +58,16 @@ Network notes (full detail in `platform-pins.md` §4):
 - Mainnet wRPC has NO public default endpoint: set `PC_MAINNET_WRPC` in
   `.env` before using `--mainnet`, or broadcast fails with
   "all endpoints failed".
+- Change outputs are guarded by storage mass, not a round-number dust
+  floor: a change output too small for the tx's storage mass burns as fee
+  with a visible WARNING (`platform-pins.md` §4.9). Covenant-bound outputs
+  count 4x in that mass.
 
 ---
 
 ## Library Quick Start
 
+```js
 const { Contract, KaspaRestProvider, buildTx } = require('sillyscript');
 
 const provider = new KaspaRestProvider('mainnet');
@@ -89,6 +96,7 @@ vesting.populateInput(tx, 0, {
 // Continuation output — covenantIdHex is REQUIRED (the lineage identity;
 // omitted, it throws)
 vesting.addContinuationOutput(tx, 1, 0, nextState, remainderAmount, covenantIdHex);
+```
 
 For the full lifecycle without hand-assembly, use the scaffold above.
 
@@ -98,11 +106,13 @@ For the full lifecycle without hand-assembly, use the scaffold above.
 
 `Contract` logic is decoupled from transport:
 
+```js
 const { KaspaRestProvider, MockProvider } = require('sillyscript');
 
 const mainnet = new KaspaRestProvider('mainnet');
 const testnet = new KaspaRestProvider('testnet');
 const custom  = new KaspaRestProvider('https://kaspad.internal:8080');
+```
 
 `MockProvider` runs contracts, UTXO spends, and multi-step transitions
 in-memory with zero network calls — see its usage in the test suite.
@@ -111,10 +121,12 @@ in-memory with zero network calls — see its usage in the test suite.
 
 ## CLI
 
+```bash
 node bin/silly.js setup    # Termux: install Rust, compile silverc
 node bin/silly.js init foo # scaffold a covenant project
 node bin/silly.js check    # toolchain + template verification gate
 npx silly-typegen ./vesting.json --out ./vesting.d.ts
+```
 
 `silly check` syntax-checks every scaffold template — generated projects
 parse before you ever run them.
@@ -136,8 +148,10 @@ parse before you ever run them.
 | `kaspa-sighash.js` | v1 sighash engine with covenant binding commitments |
 | `kaspa-tx.js` | Tx assembly, auto computeBudget (10/60), signing, mass/fee |
 | `kaspa-wrpc.js` | wRPC broadcast, endpoint rotation, BigInt serialization |
+| `genesis-verify.js` | Verifies a covenant's source and artifact against its on-chain genesis |
 | `bin/silly.js` | CLI: setup / init / check |
 | `bin/templates/` | Scaffold source: lib / deploy / interact / close |
+| `probes/` | Chain-verification scripts and TN10 storage-mass probes; inventory in `Files-Manifest.md` |
 
 (Test counts are owned by `Files-Manifest.md` — the single count owner.)
 
@@ -145,7 +159,9 @@ parse before you ever run them.
 
 ## Tests & Docs
 
+```bash
 npm test   # self-test modules — "ALL n PASS" lines per Files-Manifest.md, zero FAIL
+```
 
 The repo ships its own operating canon: `SillyBible.md` (model,
 language, patterns), `platform-pins.md` (graded, evidenced facts),
