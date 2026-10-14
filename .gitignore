@@ -10,3 +10,4 @@ closeout-*.js
 patch-*.js
 .backup-pre-audit/
 SESSION-PACK.md
+AUDIT-HANDOFF.md

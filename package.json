@@ -8,6 +8,28 @@
     "silly-compile": "./silly-compile.js",
     "silly": "./bin/silly.js"
   },
+  "files": [
+    "index.js",
+    "contract.js",
+    "genesis-verify.js",
+    "kaspa-crypto.js",
+    "kaspa-sighash.js",
+    "kaspa-tx.js",
+    "kaspa-wrpc.js",
+    "provider.js",
+    "sil-abi.js",
+    "sil-encoder.js",
+    "silly-compile.js",
+    "silly-typegen.js",
+    "bin/",
+    "counter-abi.json",
+    "vesting.sil",
+    "vesting.json",
+    "vesting.d.ts",
+    "test-vectors/",
+    "README.md",
+    "SAFETY.md"
+  ],
   "scripts": {
     "test": "node sil-encoder.js --test && node kaspa-wrpc.js --test && node provider.js --test && node silly-compile.js --test && node silly-typegen.js --test && node kaspa-crypto.js --test && node kaspa-sighash.js --test && node kaspa-tx.js --test && node contract.js --test && node genesis-verify.js --test"
   },
