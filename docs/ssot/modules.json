@@ -1,0 +1,27 @@
+{
+  "source": "SSOT.md",
+  "source_sha256": "1f2595a31a904358843532bd4bf9b813002af09d26628ebe55f9f527ac4a0e2f",
+  "modules": [
+    "00-index.md",
+    "01-fundamentals.md",
+    "02-transaction-v1.md",
+    "03-opcodes.md",
+    "04-kips.md",
+    "05-silverscript-ref.md",
+    "06-contracts.md",
+    "07-kcc20.md",
+    "08-security-patterns.md",
+    "09-agent-brief.md",
+    "10-glossary.md",
+    "11-appendices.md",
+    "12-addresses-networks.md",
+    "13-workflow-tooling.md",
+    "14-fees-mass-worked-examples.md",
+    "15-tx-walkthrough.md",
+    "16-toccata-limits.md",
+    "17-token-standards.md",
+    "18-zk-based-apps-primer.md",
+    "19-misconceptions.md",
+    "CHANGELOG.md"
+  ]
+}

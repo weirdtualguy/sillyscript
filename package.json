@@ -28,10 +28,16 @@
     "vesting.d.ts",
     "test-vectors/",
     "README.md",
-    "SAFETY.md"
+    "SAFETY.md",
+    "SillyBible.md",
+    "platform-pins.md",
+    "SECURITY.md",
+    "docs/",
+    "ui/",
+    "tools/"
   ],
   "scripts": {
-    "test": "node sil-encoder.js --test && node kaspa-wrpc.js --test && node provider.js --test && node silly-compile.js --test && node silly-typegen.js --test && node kaspa-crypto.js --test && node kaspa-sighash.js --test && node kaspa-tx.js --test && node contract.js --test && node genesis-verify.js --test"
+    "test": "node sil-encoder.js --test && node kaspa-wrpc.js --test && node provider.js --test && node silly-compile.js --test && node silly-typegen.js --test && node kaspa-crypto.js --test && node kaspa-sighash.js --test && node kaspa-tx.js --test && node contract.js --test && node genesis-verify.js --test && node test-cli.js && node test-kcc1.js && node test-kcc2-20.js && node test-docs.js && node test-ui.js"
   },
   "keywords": [
     "kaspa",
@@ -43,7 +49,7 @@
     "typegen",
     "provider"
   ],
-  "author": "",
+  "author": "Amin",
   "license": "ISC",
   "engines": {
     "node": ">=18"

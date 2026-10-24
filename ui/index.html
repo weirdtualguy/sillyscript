@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>sillyscript</title>
+<style>
+:root{--bg:#0f1419;--panel:#171e26;--line:#2a3440;--fg:#e6edf3;--dim:#8b98a5;--acc:#49d6b4;--bad:#ff7b72;--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+@media (prefers-color-scheme:light){:root{--bg:#f6f8fa;--panel:#fff;--line:#d0d7de;--fg:#1f2328;--dim:#59636e;--acc:#0a7d63;--bad:#cf222e}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.45 system-ui,sans-serif;padding:env(safe-area-inset-top,0) 0 env(safe-area-inset-bottom,0)}
+header{padding:12px 14px 0}
+h1{font-size:18px;margin:0 0 2px}
+#status{color:var(--dim);font-size:12px}
+nav{display:flex;gap:4px;overflow-x:auto;padding:10px 14px 0;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--bg)}
+nav button{background:none;border:0;color:var(--dim);padding:8px 10px;font:inherit;border-bottom:2px solid transparent;white-space:nowrap;cursor:pointer}
+nav button.on{color:var(--fg);border-color:var(--acc)}
+main{padding:14px;max-width:900px;margin:0 auto}
+section{display:none}section.on{display:block}
+label{display:block;color:var(--dim);font-size:13px;margin:12px 0 4px}
+textarea,input,select{width:100%;background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:9px;font:13px var(--mono)}
+textarea{min-height:120px;resize:vertical}
+button.go{margin-top:12px;background:var(--acc);color:#04130f;border:0;border-radius:6px;padding:10px 16px;font:600 14px system-ui;cursor:pointer}
+button.mini{background:none;border:1px solid var(--line);color:var(--dim);border-radius:5px;padding:2px 8px;font-size:12px;cursor:pointer;margin-left:6px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px;margin-top:14px}
+.card h3{margin:0 0 6px;font-size:16px}
+.kv{display:grid;grid-template-columns:max-content 1fr;gap:2px 12px;font-size:13px}
+.kv dt{color:var(--dim)}.kv dd{margin:0;font-family:var(--mono);word-break:break-all}
+table{border-collapse:collapse;width:100%;font-size:12.5px;margin-top:6px}
+th,td{text-align:left;padding:4px 6px;border-bottom:1px solid var(--line);font-family:var(--mono);word-break:break-all;vertical-align:top}
+th{color:var(--dim);font-weight:500}
+.err{color:var(--bad);white-space:pre-wrap;margin-top:10px;font-size:13px}
+.out{font-family:var(--mono);font-size:12.5px;word-break:break-all;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:9px;margin-top:6px}
+pre#doc{white-space:pre-wrap;word-break:break-word;font:12.5px/1.5 var(--mono);background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:10px;max-height:70vh;overflow:auto}
+.hint{color:var(--dim);font-size:12px;margin-top:4px}
+</style>
+</head>
+<body>
+<header><h1>sillyscript</h1><div id="status">loading…</div></header>
+<nav id="tabs"></nav>
+<main>
+<section id="t-artifact">
+  <label for="art">Compiled artifact (JSON)</label>
+  <textarea id="art" spellcheck="false" placeholder="Paste an artifact, or choose a file"></textarea>
+  <input type="file" id="artfile" accept=".json,application/json" style="margin-top:8px">
+  <button class="go" id="inspect">Verify &amp; inspect</button>
+  <div class="hint">Fail-closed: dispatch tags, template hash and state span are re-derived; a mismatch is rejected.</div>
+  <div id="art-out"></div>
+</section>
+<section id="t-call">
+  <label for="c-contract">Contract</label><select id="c-contract"></select>
+  <label for="c-entry">Entry</label><select id="c-entry"></select>
+  <div id="c-args"></div>
+  <button class="go" id="encode">Encode signature script</button>
+  <div id="c-out"></div>
+  <div class="hint">Ints are decimal strings, bytes are hex, arrays and records are JSON. Signatures are produced outside this UI: no keys are handled here.</div>
+</section>
+<section id="t-state">
+  <label for="s-contract">Contract</label><select id="s-contract"></select>
+  <div id="s-fields"></div>
+  <button class="go" id="derive">Derive next redeem script &amp; address</button>
+  <div id="s-out"></div>
+</section>
+<section id="t-tools">
+  <h3>Dispatch tag</h3>
+  <label for="tg">Signature, no spaces. Records render as {t1,t2}</label>
+  <input id="tg" placeholder="transfer({int,byte[32]}[],byte[])" spellcheck="false">
+  <button class="go" id="tag">Compute tag</button><div id="tg-out"></div>
+  <h3 style="margin-top:28px">Address from redeem script</h3>
+  <label for="rd">Redeem script (hex)</label>
+  <textarea id="rd" spellcheck="false" style="min-height:70px"></textarea>
+  <button class="go" id="addr">Derive address</button><div id="rd-out"></div>
+</section>
+<section id="t-compile">
+  <div class="hint" id="cc-note"></div>
+  <label for="src">Silverscript source (.sil)</label>
+  <textarea id="src" spellcheck="false" style="min-height:220px"></textarea>
+  <label for="cargs">Constructor args (JSON array, in order)</label>
+  <input id="cargs" value="[]" spellcheck="false">
+  <button class="go" id="compile">Compile &amp; verify</button><div id="cc-out"></div>
+</section>
+<section id="t-docs">
+  <label for="dsel">Document</label><select id="dsel"></select>
+  <label for="dfilter">Filter lines</label><input id="dfilter" placeholder="text to find" spellcheck="false">
+  <pre id="doc"></pre>
+</section>
+</main>
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+const h = (tag, props, ...kids) => {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(props || {})) { if (k === 'class') e.className = v; else if (k.startsWith('on')) e.addEventListener(k.slice(2), v); else e.setAttribute(k, v); }
+  for (const c of kids.flat()) e.append(c instanceof Node ? c : document.createTextNode(String(c)));
+  return e;
+};
+async function api(path, body) {
+  const r = await fetch(path, body === undefined ? {} : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const j = await r.json().catch(() => ({ error: 'bad response' }));
+  if (!r.ok) throw new Error(j.error || r.statusText);
+  return j;
+}
+const copy = text => (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject()).catch(() => {});
+const val = (label, text) => [h('dt', {}, label), h('dd', {}, text, h('button', { class: 'mini', onclick: () => copy(text) }, 'copy'))];
+const show = (el, fn) => async () => { el.replaceChildren(); try { el.append(await fn()); } catch (e) { el.append(h('div', { class: 'err' }, e.message)); } };
+const addrKv = a => h('dl', { class: 'kv' }, val('mainnet', a.mainnet), val('testnet', a.testnet), val('spk', a.script_public_key));
+
+// tabs
+const TABS = [['artifact', 'Artifact'], ['call', 'Call'], ['state', 'State'], ['tools', 'Tools'], ['compile', 'Compile'], ['docs', 'Docs']];
+function go(name) {
+  for (const [k] of TABS) { $('t-' + k).classList.toggle('on', k === name); $('tab-' + k).classList.toggle('on', k === name); }
+  location.hash = name;
+}
+for (const [k, label] of TABS) $('tabs').append(h('button', { id: 'tab-' + k, onclick: () => go(k) }, label));
+
+// artifact
+let contracts = [];
+function renderContracts(list) {
+  return h('div', {}, list.map(c => h('div', { class: 'card' },
+    h('h3', {}, c.name),
+    h('dl', { class: 'kv' }, val('template', c.template_hash), h('dt', {}, 'bytecode'), h('dd', {}, c.bytecode_bytes + ' B'),
+      h('dt', {}, 'state span'), h('dd', {}, 'offset ' + c.state_span.offset + ', ' + c.state_span.len + ' B'),
+      c.state ? [h('dt', {}, 'state'), h('dd', {}, JSON.stringify(c.state))] : []),
+    addrKv(c.addresses),
+    h('table', {}, h('thead', {}, h('tr', {}, h('th', {}, 'entry'), h('th', {}, 'tag'), h('th', {}, 'signature'))),
+      h('tbody', {}, c.entries.map(e => h('tr', {}, h('td', {}, e.name), h('td', {}, e.tag), h('td', {}, e.signature))))),
+    c.fields.length ? h('table', {}, h('thead', {}, h('tr', {}, h('th', {}, 'state field'), h('th', {}, 'type'))),
+      h('tbody', {}, c.fields.map(f => h('tr', {}, h('td', {}, f.name), h('td', {}, f.type))))) : '')));
+}
+function adopt(list) {
+  contracts = list;
+  for (const id of ['c-contract', 's-contract']) $(id).replaceChildren(...list.map(c => h('option', { value: c.name }, c.name)));
+  buildArgs(); buildFields();
+}
+$('inspect').onclick = show($('art-out'), async () => { const r = await api('/api/artifact', { artifact: $('art').value }); adopt(r.contracts); return renderContracts(r.contracts); });
+$('artfile').onchange = async e => { const f = e.target.files[0]; if (f) { $('art').value = await f.text(); $('inspect').click(); } };
+
+// call
+const cur = id => contracts.find(c => c.name === $(id).value);
+const placeholder = p => ({ int: 'decimal integer', temporal: 'decimal integer', bool: 'true | false', byte: '0-255', string: 'text', fixed_array: 'JSON array', dynamic_array: 'JSON array', struct: 'JSON object' }[p.kind] || 'hex');
+function buildArgs() {
+  const c = cur('c-contract'); if (!c) return;
+  $('c-entry').replaceChildren(...c.entries.map(e => h('option', { value: e.name }, e.name + '  ' + e.tag)));
+  renderArgs();
+}
+function renderArgs() {
+  const c = cur('c-contract'); if (!c) return;
+  const e = c.entries.find(x => x.name === $('c-entry').value); if (!e) return;
+  $('c-args').replaceChildren(...e.params.map((p, i) => h('div', {}, h('label', { for: 'arg' + i }, p.name + ' : ' + p.type), h('input', { id: 'arg' + i, placeholder: placeholder(p), spellcheck: 'false' }))));
+}
+$('c-contract').onchange = () => { buildArgs(); };
+$('c-entry').onchange = renderArgs;
+const structured = k => k === 'fixed_array' || k === 'dynamic_array' || k === 'struct';
+$('encode').onclick = show($('c-out'), async () => {
+  const c = cur('c-contract'); if (!c) throw new Error('Inspect an artifact first');
+  const e = c.entries.find(x => x.name === $('c-entry').value);
+  const args = e.params.map((p, i) => { const t = $('arg' + i).value.trim(); return structured(p.kind) ? JSON.parse(t || 'null') : t; });
+  const r = await api('/api/encode', { artifact: $('art').value, contract: c.name, entry: e.name, args });
+  return h('div', {}, h('dl', { class: 'kv' }, val('tag', r.tag), val('args + tag', r.args_and_tag_hex), val('sigscript', r.signature_script_hex), h('dt', {}, 'size'), h('dd', {}, r.signature_script_bytes + ' B')));
+});
+
+// state
+function buildFields() {
+  const c = cur('s-contract'); if (!c) return;
+  $('s-fields').replaceChildren(...c.fields.map((f, i) => h('div', {}, h('label', { for: 'sf' + i }, f.name + ' : ' + f.type),
+    h('input', { id: 'sf' + i, spellcheck: 'false', value: c.state && c.state[f.name] !== undefined ? (typeof c.state[f.name] === 'object' ? JSON.stringify(c.state[f.name]) : String(c.state[f.name])) : '' }))));
+}
+$('s-contract').onchange = buildFields;
+$('derive').onclick = show($('s-out'), async () => {
+  const c = cur('s-contract'); if (!c) throw new Error('Inspect an artifact first');
+  const state = {};
+  c.fields.forEach((f, i) => { const t = $('sf' + i).value.trim(); state[f.name] = /\[|\]/.test(f.type) && !/^byte\[\d*\]$/.test(f.type) ? JSON.parse(t) : t; });
+  const r = await api('/api/state', { artifact: $('art').value, contract: c.name, state });
+  return h('div', {}, h('dl', { class: 'kv' }, val('redeem', r.redeem_hex), h('dt', {}, 'size'), h('dd', {}, r.redeem_bytes + ' B')), addrKv(r.addresses));
+});
+
+// tools
+$('tag').onclick = show($('tg-out'), async () => { const r = await api('/api/tag', { signature: $('tg').value.trim() }); return h('dl', { class: 'kv' }, val('tag', r.tag), val('blake3', r.blake3)); });
+$('addr').onclick = show($('rd-out'), async () => { const r = await api('/api/address', { redeem_hex: $('rd').value.trim() }); return h('div', {}, h('dl', { class: 'kv' }, h('dt', {}, 'size'), h('dd', {}, r.redeem_bytes + ' B')), addrKv(r.addresses)); });
+
+// compile
+$('compile').onclick = show($('cc-out'), async () => {
+  const r = await api('/api/compile', { source: $('src').value, args: JSON.parse($('cargs').value || '[]') });
+  $('art').value = JSON.stringify(r.artifact, null, 2); adopt(r.contracts); go('artifact'); $('art-out').replaceChildren(renderContracts(r.contracts));
+  return h('div', {}, 'Compiled and verified.');
+});
+
+// docs
+let docText = '';
+const renderDoc = () => {
+  const q = $('dfilter').value.toLowerCase();
+  $('doc').textContent = q ? docText.split('\n').filter(l => l.toLowerCase().includes(q)).join('\n') : docText;
+};
+$('dsel').onchange = async () => { try { docText = (await api('/api/doc?path=' + encodeURIComponent($('dsel').value))).text; } catch (e) { docText = e.message; } renderDoc(); };
+$('dfilter').oninput = renderDoc;
+
+(async () => {
+  try {
+    const s = await api('/api/status');
+    $('status').textContent = 'v' + s.version + ' · node ' + s.node + ' · silverc ' + (s.silverc ? 'found' : 'not found') + ' · local only, no keys';
+    $('cc-note').textContent = s.silverc ? 'silverc found.' : 'silverc not found. Run: silly setup';
+    const d = await api('/api/docs');
+    $('dsel').replaceChildren(...d.docs.map(p => h('option', { value: p }, p)));
+    if (d.docs.length) $('dsel').onchange();
+  } catch (e) { $('status').textContent = e.message; }
+  go(TABS.some(([k]) => k === location.hash.slice(1)) ? location.hash.slice(1) : 'artifact');
+})();
+</script>
+</body>
+</html>

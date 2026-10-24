@@ -9,16 +9,35 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
-const { execSync } = require('child_process');
+const { execSync, execFileSync } = require('child_process');
 
 const KNOWN_GOOD_REV = 'c7d17a15ac88610d013ec9ffffa9520aeb69929b';
 const SILVERC_HOME = path.join(os.homedir(), 'bin', 'silverc');
 
-const command = process.argv[2];
+const command = process.argv[2];  // setup | init | check | genesis | --version
 const projectName = process.argv[3] && !process.argv[3].startsWith('--') ? process.argv[3] : null;
 const isMainnet = process.argv.includes('--mainnet');
 const useLatest = process.argv.includes('--latest');
 const rev = useLatest ? 'master' : (process.argv.find(a => a.startsWith('--rev=')) || `--rev=${KNOWN_GOOD_REV}`).split('=')[1];
+const PKG = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8'));
+const IS_TERMUX = /com\.termux/.test(process.env.PREFIX || '');
+
+function has(cmd) {
+    try { execFileSync(cmd, ['--version'], { stdio: 'ignore' }); return true; } catch { return false; }
+}
+
+if (command === 'ui') {
+    const pi = process.argv.indexOf('--port');
+    const port = pi > 0 ? Number(process.argv[pi + 1]) : 8787;
+    if (!Number.isInteger(port) || port < 0 || port > 65535) { console.error('[!] --port must be 0-65535.'); process.exit(1); }
+    require('../ui/server').start(port).catch(e => { console.error('[!] ' + e.message); process.exit(1); });
+    return;   // keep the process alive for the server
+}
+
+if (command === '--version' || command === '-v') {
+    console.log(PKG.version);
+    process.exit(0);
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // setup: Install Rust + compile silverc from source
@@ -29,6 +48,15 @@ if (command === 'setup') {
     console.log('[silly] This installs Rust and compiles silverc from source.');
     console.log('[silly] Takes 5-10 minutes. Keep your phone plugged in.\n');
 
+    if (!/^([0-9a-f]{7,40}|master)$/.test(rev)) {
+        console.error('[!] --rev must be a 7-40 char hex commit or "master".');
+        process.exit(1);
+    }
+    if (rev === 'master') {
+        console.log('[silly] WARNING: building silverc master, not the pinned revision. Artifact format and');
+        console.log('        tag derivation are revision-sensitive (platform-pins.md 1.6): re-verify contracts.\n');
+    }
+
     // Check for existing installation
     if (fs.existsSync(SILVERC_HOME)) {
         console.log(`[silly] silverc already exists at ${SILVERC_HOME}`);
@@ -38,21 +66,28 @@ if (command === 'setup') {
 
     try {
         // Step 1: System dependencies
-        console.log('→ [1/4] Installing system dependencies (rust, clang, git)...');
-        execSync('pkg update -y && pkg install -y rust git binutils clang make', { stdio: 'inherit' });
+        if (IS_TERMUX) {
+            console.log('→ [1/4] Installing system dependencies (rust, clang, git)...');
+            execSync('pkg update -y && pkg install -y rust git binutils clang make', { stdio: 'inherit' });
+        } else {
+            console.log('→ [1/4] Not Termux: skipping pkg. Requires cargo and git on PATH.');
+            for (const c of ['git', 'cargo']) {
+                if (!has(c)) { console.error(`[!] '${c}' not found. Install it (https://rustup.rs for cargo) and re-run.`); process.exit(1); }
+            }
+        }
 
         // Step 2: Clone silverscript at pinned revision
         console.log(`\n→ [2/4] Cloning silverscript @ ${rev.slice(0, 8)}...`);
         const tmpDir = path.join(os.tmpdir(), `silverscript-${Date.now()}`);
-        execSync(`git clone https://github.com/kaspanet/silverscript ${tmpDir}`, { stdio: 'inherit' });
+        execFileSync('git', ['clone', 'https://github.com/kaspanet/silverscript', tmpDir], { stdio: 'inherit' });
         if (rev !== 'master') {
-            execSync(`cd ${tmpDir} && git checkout ${rev}`, { stdio: 'inherit' });
+            execFileSync('git', ['checkout', rev], { cwd: tmpDir, stdio: 'inherit' });
         }
 
         // Step 3: Termux patch — remove risc0-zkvm (not available on Android/bionic)
         console.log('\n→ [3/4] Applying Termux patch (removing risc0-zkvm)...');
         const cargoToml = path.join(tmpDir, 'silverscript-lang', 'Cargo.toml');
-        if (fs.existsSync(cargoToml)) {
+        if (IS_TERMUX && fs.existsSync(cargoToml)) {
             let cargoSrc = fs.readFileSync(cargoToml, 'utf8');
             if (cargoSrc.includes('risc0-zkvm')) {
                 cargoSrc = cargoSrc.replace(/^\s*"risc0-zkvm",?\s*$/gm, '');
@@ -65,7 +100,7 @@ if (command === 'setup') {
 
         // Step 4: Compile silverc
         console.log('\n→ [4/4] Compiling silverc (this takes a while)...');
-        execSync(`cd ${tmpDir} && cargo build --release --bin silverc --jobs 2`, { stdio: 'inherit' });
+        execFileSync('cargo', ['build', '--release', '--bin', 'silverc', '--jobs', '2'], { cwd: tmpDir, stdio: 'inherit' });
 
         // Install to ~/bin
         const binDir = path.join(os.homedir(), 'bin');
@@ -95,11 +130,14 @@ if (command === 'setup') {
 
 if (command === 'check') {
     console.log('\n[silly] Toolchain check:');
+    let failed = false;
     const silverc = fs.existsSync(SILVERC_HOME) ? SILVERC_HOME :
         (() => { try { return execSync('which silverc').toString().trim(); } catch { return null; } })();
 
     console.log(`  silverc:    ${silverc ? '✓ ' + silverc : '✗ NOT FOUND (run: silly setup)'}`);
-    console.log(`  node:      ✓ ${process.version}`);
+    const nodeMajor = parseInt(process.versions.node, 10);
+    if (nodeMajor < 18) failed = true;
+    console.log(`  node:       ${nodeMajor < 18 ? '✗ ' + process.version + ' (need >=18)' : '✓ ' + process.version}`);
     console.log(`  platform:   ${os.platform()} (${os.arch()})`);
 
     // Check sillyscript itself
@@ -114,6 +152,7 @@ if (command === 'check') {
         console.log('  noble deps: ✓ installed');
     } catch (e) {
         console.log('  noble deps: ✗ MISSING (run: npm install)');
+        failed = true;
     }
 
     // Quick verification: can we load an artifact?
@@ -125,6 +164,7 @@ if (command === 'check') {
             console.log('  artifact verify: ✓ vesting.json loads and verifies');
         } catch (e) {
             console.log(`  artifact verify: ✗ ${e.message}`);
+            failed = true;
         }
     }
 
@@ -137,14 +177,14 @@ if (command === 'check') {
             const tmp = path.join(os.tmpdir(), 'silly-tpl-' + f + '.check.js');
             fs.writeFileSync(tmp, fs.readFileSync(path.join(tplDir, f), 'utf8'));
             try { execSync('node --check ' + JSON.stringify(tmp), { stdio: 'pipe' }); }
-            catch (e) { tplOk = false; console.log('  templates:   X ' + f + ' does not parse'); }
+            catch (e) { tplOk = false; failed = true; console.log('  templates:   X ' + f + ' does not parse'); }
             finally { fs.rmSync(tmp, { force: true }); }
         }
         if (tplOk) console.log('  templates:   OK scaffold scripts parse');
     }
 
-    console.log(silverc ? '\n✅ Ready to compile covenants!' : '\n⚠️  Run: silly setup');
-    process.exit(0);
+    console.log(!failed && silverc ? '\n✅ Ready to compile covenants!' : (failed ? '\n✗ Fix the items marked ✗ above.' : '\n⚠️  Run: silly setup'));
+    process.exit(failed ? 1 : 0);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -157,6 +197,10 @@ if (command === 'init') {
         process.exit(1);
     }
 
+    if (!/^[a-z0-9][a-z0-9._-]{0,213}$/.test(projectName)) {
+        console.error('[!] Project name must be a valid npm name: lowercase letters, digits, . _ - (start with a letter or digit).');
+        process.exit(1);
+    }
     const targetDir = path.join(process.cwd(), projectName);
     if (fs.existsSync(targetDir)) {
         console.error(`[!] Directory '${projectName}' already exists.`);
@@ -190,7 +234,7 @@ PC_PRIV=
 # Optional: custom wRPC node (bypasses rate-limited public endpoints)
 # PC_TN10_WRPC=wss://your-node/wrpc
 # PC_MAINNET_WRPC=wss://your-node/wrpc
-`);
+`, { mode: 0o600 });
 
     // Starter contract — Counter (demonstrates state + continuation + termination)
     fs.writeFileSync(path.join(targetDir, 'contracts', 'Counter.sil'),
@@ -240,7 +284,11 @@ contract Counter(pubkey owner) {
             close: 'node close.js',
         },
         dependencies: {
-            sillyscript: `file:${path.join(__dirname, '..')}`,
+            // Installed from npm (inside node_modules): depend on the registry version.
+            // Git checkout: link the local copy.
+            sillyscript: /[\\/]node_modules[\\/]/.test(__dirname)
+                ? `^${PKG.version}`
+                : `file:${path.join(__dirname, '..')}`,
             ...libNobleDeps,
         },
     }, null, 2) + '\n');
@@ -354,9 +402,14 @@ Commands:
   silly setup              Install Rust + compile silverc (Termux/Android)
   silly init <name>        Scaffold a new covenant project
                             --mainnet    Target mainnet (default: testnet)
-  silly check              Verify toolchain is ready
+  silly check              Verify toolchain is ready (exit 1 on failure)
+  silly genesis verify <source.sil|artifact.json> --covenant-id <id> --genesis-txid <txid>
+                            Verify a source/artifact against an on-chain covenant
+                            [--network testnet|mainnet] [--initial-state <json>]
+  silly ui [--port 8787]   Local UI on 127.0.0.1: inspect artifacts, encode calls, tags, addresses, docs
+  silly --version          Print the version
 
 The full dev loop on your phone:
   silly setup → silly init my-app → edit .env → npm run deploy
 `);
-process.exit(0);
+process.exit(command === undefined || command === 'help' || command === '--help' || command === '-h' ? 0 : 1);

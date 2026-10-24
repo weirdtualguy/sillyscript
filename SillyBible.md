@@ -1022,6 +1022,11 @@ contract Offer(int askPrice, int mktFee, int expireAge, byte[32] edCovId) {
 
 ### P6 — Fungible Token + Issuance Controller (KCC20 + KCC20Minter)
 
+[SUPERSEDED-SHAPE] The state and entrypoints below are the pre-final KCC20 design (`isMinter`, three owner modes).
+Final KCC-20 uses a six-field `KCC20State`, KCC-2 owner-scheme bytes and `transfer(KCC20State[],byte[])` /
+`transfer_delegator(byte[])`; the codec matches the final vectors (docs/KCC-CONFORMANCE.md). The composition
+reasoning in P6 (leader/delegator, column-grouped struct arrays) still holds.
+
 **Problem:** a token state machine owned by keys/scripts/covenants, with
 issuance policy externalized into a separate controller.
 

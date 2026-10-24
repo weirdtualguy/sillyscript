@@ -1,0 +1,5 @@
+*.bak*
+*.zip
+patch-*.js
+AUDIT-HANDOFF.md
+SESSION-PACK.md

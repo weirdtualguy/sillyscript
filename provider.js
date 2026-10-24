@@ -151,7 +151,7 @@ class KaspaRestProvider extends Provider {
     }
 
     this.headers = Object.assign({
-      'User-Agent': 'sillyscript/1.0',
+      'User-Agent': 'sillyscript/' + require('./package.json').version,
       'Origin': 'https://wallet.kaspanet.io',
       'Content-Type': 'application/json',
     }, opts.headers || {});

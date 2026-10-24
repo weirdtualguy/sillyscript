@@ -329,7 +329,8 @@ function encodeSigArg(buf, type, value, paramName, resolveStruct) {
 
 // Struct array: column-grouped — one push per struct FIELD, each containing
 // all elements' values for that field concatenated (fixed-width payloads).
-// This matches the KCC20 encoding: (owners|types|amounts|isMinter)
+// KCC-1 3.4.6: array-of-record arguments are grouped per field, in declaration order
+// (e.g. KCC-20 final: amounts | owners | owner_schemes | borrow_schemes | borrow_guards | extension_commitments)
 function encodeStructArrayArg(buf, type, value, paramName, resolveStruct) {
   const ctx = `param '${paramName}'`;
   const structType = type.item;

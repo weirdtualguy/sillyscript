@@ -8,7 +8,9 @@ they do.
 ```text
 ~/sillyscript/
 ├── .gitignore                     node_modules/, *.bak*, session artifacts
-├── package.json                   npm manifest: @noble/hashes ^1.4.0, @noble/curves ^1.6.0
+├── package.json                   npm manifest: @noble/hashes ^1.4.0, @noble/curves ^1.6.0, ws ^8.22.0
+├── LICENSE                        ISC
+├── SECURITY.md                    vulnerability reporting + scope
 │
 ├── SillyBible.md                  THE CANON — mental model, covenant mechanics, pattern catalog
 ├── platform-pins.md               THE FACTS — graded protocol pins, codec rules, incident registry
@@ -22,6 +24,14 @@ they do.
 ├── provider.js                    TRANSPORT LAYER: Provider, KaspaRestProvider, MockProvider
 ├── silly-compile.js               COMPILE LAYER: silverc invocation + fail-closed verification
 ├── silly-typegen.js               TOOLING: CLI & programmatic TypeScript type generator
+├── test-cli.js                    TESTS: offline smoke tests for bin/silly.js (not shipped to npm)
+├── test-kcc1.js                   TESTS: KCC-1 section 6 conformance vectors (not shipped to npm)
+├── test-kcc2-20.js                TESTS: KCC-2 and KCC-20 codec vectors (not shipped to npm)
+├── test-docs.js                   TESTS: docs integrity (SSOT modules, KCC headers, links, test wiring)
+├── test-ui.js                     TESTS: local UI server (loopback guards, API parity)
+├── ui/                            local UI: server.js (zero-dep, loopback only) + index.html (single page)
+├── tools/ssot-build.js            concatenates docs/ssot modules into one SSOT.md
+├── docs/                          README.md (authority order), KCC-CONFORMANCE.md, kcc/ (KCC-1, 2, 20 Final), ssot/ (21 modules + ERRATA.md + modules.json)
 ├── make-session-pack.js           TOOLING: builds SESSION-PACK.md (chat-handoff pack; pack itself is a gitignored build artifact)
 ├── sil-abi.js                     CODEC 1: artifact loader, tag verifier, state decoder
 ├── sil-encoder.js                 CODEC 2: minimal/explicit push builder, columnar struct arrays
@@ -37,7 +47,7 @@ they do.
 ├── counter-abi.json               REFERENCE ARTIFACT: Counter — chain-verified testnet-10 deploy (genesis bd4085b1…, pins 3.3b)
 │
 ├── bin/
-│   ├── silly.js                   CLI: setup / init / check (check parses all templates)
+│   ├── silly.js                   CLI: setup / init / check / genesis verify / ui / --version (check parses all templates)
 │   └── templates/                 SCAFFOLD SOURCE — copied verbatim by silly init
 │       ├── lib.js.txt             shared runtime: env, keys, record I/O, pending recovery
 │       ├── deploy.js.txt          genesis (bind-after-build, pending crash marker)
@@ -72,9 +82,14 @@ they do.
 | `kaspa-crypto.js` | 29 | CashAddr-variant bech32; KIP-20 covenant ID; P2SH/P2PK script public keys. |
 | `kaspa-sighash.js` | 14 | v1 sighash: keyed blake2b over the 16-field preimage with covenant bindings. |
 | `kaspa-tx.js` | 51 | Tx assembly (auto computeBudget 10/60), P2PK and covenant signing, mass/fee estimation. |
+| `test-kcc1.js` | 64 | KCC-1 section 6 vectors: BLAKE3, type names, pushes, scalars, composites, dispatch tags, P2SH, state, template hashes, continuation. |
+| `test-kcc2-20.js` | 16 | KCC-2 authority hashes and encodings; KCC-20 dispatch tags, 112-byte state, transfer arguments, hash chain. |
+| `test-docs.js` | 11 | SSOT module set and build, unique heading ids, KCC headers, local links, every `test-*.js` wired into `npm test`. |
+| `test-ui.js` | 33 | Local UI: Host/Origin guards, CSP, fail-closed artifact load, encode/state/tag/address parity, docs allowlist, front-end sanity. |
+| `test-cli.js` | 12 | Offline CLI smoke tests: version, unknown command, project-name and `--rev` validation, scaffold contents, `.env` mode 0600, `silly check`. |
 | `kaspa-wrpc.js` | 36 | wRPC broadcast: gauntlet-B4 schema, BigInt serialization, rotation on error and rejection. |
 
-**Total: 321 tests across 10 self-test modules** — `npm test` prints ten
+**Total: 457 tests across 15 self-test modules** — `npm test` prints fifteen
 `ALL n PASS` lines; their sum is the contract.
 
 ## The Scaffold — `silly init <name>`
@@ -110,16 +125,17 @@ The check weighs covenant-bound outputs 4x and handles unequal inputs (pins §4.
 ```text
 @noble/hashes ^1.4.0     blake2b, blake3
 @noble/curves ^1.6.0     schnorr (secp256k1)
+ws            ^8.22.0    wRPC transport (kaspa-wrpc.js)
 ```
 
-Two packages, zero WASM, pure JavaScript. Node and Termux proven; the
+Three packages, zero WASM, pure JavaScript. Node and Termux proven; the
 browser claim awaits the isomorphic (Uint8Array) pass — README audit item.
 
 ## Publishing Notes (pre-publish checklist)
 
-- `files` whitelist REQUIRED before `npm publish` — the repo now carries git
-  history and strays; the default would ship everything. Must include
-  `bin/` and `bin/templates/` or the scaffold ships broken.
+- `files` whitelist is in place (runtime modules, `bin/`, docs, vectors); verify
+  with `npm pack --dry-run` before `npm publish`. `bin/` must ship with
+  `bin/templates/` or the scaffold is broken.
 - noble pinned to 1.x — v2 subpath exports are incompatible (pins §5.3).
 - silverc revision dependency: c7d17a1 proven (pins §1.6) — documented in
   the README.

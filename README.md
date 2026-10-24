@@ -6,8 +6,9 @@ covenants, drive state transitions, terminate them — from Termux.
 
 **Status:** development toolkit, proven end-to-end on testnet-10 (two full
 lifecycles, on-chain, record-driven — citations in `platform-pins.md`
-§3.3b). Not yet published to npm: use the scaffold below, or
-`npm install /path/to/sillyscript`.
+§3.3b). Not yet published to npm: clone the repo and `npm install` inside it,
+or `npm install /path/to/sillyscript` from a project. Requires Node.js >= 18.
+Mainnet is not proven end-to-end: read `SAFETY.md` before using funds.
 
 **Compiler dependency:** `silverc` at revision `c7d17a1`. Artifact format
 and tag derivation are revision-sensitive (`platform-pins.md` §1.6) —
@@ -111,7 +112,7 @@ const { KaspaRestProvider, MockProvider } = require('sillyscript');
 
 const mainnet = new KaspaRestProvider('mainnet');
 const testnet = new KaspaRestProvider('testnet');
-const custom  = new KaspaRestProvider('https://kaspad.internal:8080');
+const custom  = new KaspaRestProvider('https://kaspad.internal:8080', { network: 'mainnet' }); // network is required with a URL
 ```
 
 `MockProvider` runs contracts, UTXO spends, and multi-step transitions
@@ -124,12 +125,29 @@ in-memory with zero network calls — see its usage in the test suite.
 ```bash
 node bin/silly.js setup    # Termux: install Rust, compile silverc
 node bin/silly.js init foo # scaffold a covenant project
-node bin/silly.js check    # toolchain + template verification gate
+node bin/silly.js check    # toolchain + template verification gate (exit 1 on failure)
+node bin/silly.js genesis verify <source.sil|artifact.json> \
+    --covenant-id <id> --genesis-txid <txid> [--network testnet|mainnet]
+node bin/silly.js ui        # local UI on http://127.0.0.1:8787 (loopback only)
+node bin/silly.js --version
 npx silly-typegen ./vesting.json --out ./vesting.d.ts
 ```
 
 `silly check` syntax-checks every scaffold template — generated projects
-parse before you ever run them.
+parse before you ever run them. `silly setup` builds `silverc` with `pkg` on
+Termux; elsewhere it needs `git` and `cargo` on PATH.
+
+`silly genesis verify` checks a source or compiled artifact against an
+on-chain covenant (state, script and consensus layers) and exits 1 on mismatch.
+
+### Local UI
+
+`silly ui` serves a single-page app on `127.0.0.1` (default port 8787, `--port N` to change; works in a phone
+browser next to Termux). Tabs: verify and inspect a compiled artifact, encode an entry call into a signature
+script, derive the next redeem script and address for a state, compute dispatch tags and addresses, compile
+`.sil` source through `silverc`, and browse the docs. It never handles private keys and makes no outbound
+requests; signing and broadcasting stay in the CLI and your scripts. Requests are limited to the loopback
+origin (Host and Origin checks, strict CSP).
 
 ---
 
@@ -163,6 +181,19 @@ parse before you ever run them.
 npm test   # self-test modules — "ALL n PASS" lines per Files-Manifest.md, zero FAIL
 ```
 
-The repo ships its own operating canon: `SillyBible.md` (model,
-language, patterns), `platform-pins.md` (graded, evidenced facts),
-`SAFETY.md` (mainnet-first rails).
+## Documentation
+
+Start at [`docs/README.md`](docs/README.md); it fixes the order of authority:
+
+1. `docs/kcc/`: the Final KCC-1, KCC-2 and KCC-20 standards (imported verbatim).
+2. `platform-pins.md`: graded, evidenced facts about the pinned toolchain and testnet-10.
+3. `SillyBible.md`: the model, laws and patterns for building with sillyscript.
+4. `docs/ssot/`: the Kaspa Silverscript and Covenants single source of truth (modular; errata in `docs/ssot/ERRATA.md`).
+
+The codec is tested against the KCC conformance vectors (`test-kcc1.js`, `test-kcc2-20.js`);
+`docs/KCC-CONFORMANCE.md` lists what is proven and the two known gaps.
+`SAFETY.md` has the mainnet-first rails. Security reports: see `SECURITY.md`.
+
+## License
+
+ISC.
