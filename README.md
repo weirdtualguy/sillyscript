@@ -242,4 +242,4 @@ The codec is tested against the KCC conformance vectors (`test-kcc1.js`, `test-k
 
 ## License
 
-ISC.
+MIT.

@@ -9,7 +9,7 @@ they do.
 ~/sillyscript/
 ├── .gitignore                     node_modules/, *.bak*, session artifacts
 ├── package.json                   npm manifest: @noble/hashes ^1.4.0, @noble/curves ^1.6.0, ws ^8.22.0
-├── LICENSE                        ISC
+├── LICENSE                        MIT
 ├── SECURITY.md                    vulnerability reporting + scope
 │
 ├── SillyBible.md                  THE CANON — mental model, covenant mechanics, pattern catalog

@@ -50,7 +50,7 @@
     "provider"
   ],
   "author": "Amin",
-  "license": "ISC",
+  "license": "MIT",
   "engines": {
     "node": ">=18"
   },
