@@ -104,6 +104,53 @@ function call(port, method, url, body, headers) {
 
     r = await call(port, 'POST', '/api/compile', { source: 'contract X() {}' });
     t('compile: fails cleanly (no silverc, or silverc error), never 500', r.status === 400 && typeof r.json.error === 'string');
+    r = await call(port, 'POST', '/api/ctor', { source: '// contract Fake(int z)\n/* contract Hidden(bool q) */\ncontract Escrow(\n  pubkey owner, // who\n  byte[32] salt,\n  int amount,\n  bool open, string label\n) {\n}' });
+    t('ctor: parses a multi-line header, ignores comments',
+        r.status === 200 && r.json.contracts.length === 1 && r.json.contracts[0].name === 'Escrow' &&
+        JSON.stringify(r.json.contracts[0].params.map(p => p.type + ' ' + p.name)) === JSON.stringify(['pubkey owner', 'byte[32] salt', 'int amount', 'bool open', 'string label']));
+    r = await call(port, 'POST', '/api/ctor', { source: 'contract Empty() {}' });
+    t('ctor: zero-argument constructor', r.status === 200 && r.json.contracts[0].params.length === 0);
+    r = await call(port, 'POST', '/api/encode', { artifact: art, entry: 'claim', args: ['', '2'] });
+    t('encode: empty field reports "required"', r.status === 400 && /amount: required/.test(r.json.error));
+    const RELIKS = 'pragma silverscript ^0.1.0;\n// header\ncontract ReliksEdition(\n  byte[32] init_owner, byte init_scheme, int init_price, byte[32] init_artist,\n  int init_royalty_bips, byte[32] init_program_hash, byte[32] init_factory_covid, int init_serial\n) {\n  byte[32] ownerIdentifier = init_owner; byte identifierType = init_scheme; int price = init_price;\n  byte[32] artist = init_artist; int royalty_bips = init_royalty_bips; byte[32] program_hash = init_program_hash;\n  byte[32] factory_covid = init_factory_covid; int serial = init_serial;\n}\n';
+    r = await call(port, 'POST', '/api/ctor', { source: RELIKS });
+    const rc = r.json.contracts[0];
+    t('ctor: 8 parameters with type-valid samples', rc.params.length === 8 && rc.params.every(p => typeof p.sample === 'string' && p.sample.length > 0) &&
+        rc.params[0].sample.length === 64 && /^[0-9a-f]{64}$/.test(rc.params[3].sample) && rc.params[1].sample === '00' && rc.params[4].sample === '500');
+    t('ctor: distinct samples per byte[32] field', new Set([0, 3, 5, 6].map(i => rc.params[i].sample)).size === 4);
+    t('ctor: a sound source lints clean', r.json.lint.every(l => l.level === 'ok'));
+    r = await call(port, 'POST', '/api/ctor', { source: RELIKS.replace('pragma silverscript ^0.1.0;\n', '') });
+    t('lint: missing pragma is a warning', r.json.lint.some(l => l.level === 'warn' && /pragma/.test(l.msg)));
+    r = await call(port, 'POST', '/api/ctor', { source: RELIKS.replace(/\}\n$/, '') });
+    t('lint: unclosed brace is an error with a line', r.json.lint.some(l => l.level === 'error' && l.line === 6 && /never closed/.test(l.msg)));
+    r = await call(port, 'POST', '/api/ctor', { source: 'contract A(int x, int x) { int y = x; }' });
+    t('lint: duplicate parameter is an error', r.json.lint.some(l => l.level === 'error' && /duplicate/.test(l.msg)));
+    r = await call(port, 'POST', '/api/ctor', { source: 'contract A(int x, int unused) { int y = x; }' });
+    t('lint: unused parameter is a warning', r.json.lint.some(l => l.level === 'warn' && /"unused" is never used/.test(l.msg)));
+    r = await call(port, 'POST', '/api/ctor', { source: 'no contract here' });
+    t('lint: no contract declaration is an error', r.json.lint.some(l => l.level === 'error' && /no "contract/.test(l.msg)));
+
+    const ledger = { C: 'ca4f', series: { program_hash: 'ce0f4fc0c6dae677c5fa1091731f9b552b258c823e514789513fe841b1631011', artist: 'ec7a4c67eb8c26c145519cbee601ee8dfe3ada9eb5e47d81b6d4d0f8d5094294', price: 100000000, royalty_bips: 500 },
+        editions: [{ owner: '33fe25d181460cec565e08ceef80761c2cb990d595f43193a0c76237b0d9cc68', serial: '3035447335784889477', price: 0 }] };
+    r = await call(port, 'POST', '/api/fill', { params: rc.params.map(p => ({ name: p.name, type: p.type })), json: JSON.stringify(ledger) });
+    const rep = Object.fromEntries(r.json.report.map(x => [x.name, x]));
+    t('fill: names matched with the init_ prefix stripped', r.status === 200 && r.json.values.init_artist === ledger.series.artist && r.json.values.init_owner === ledger.editions[0].owner &&
+        r.json.values.init_program_hash === ledger.series.program_hash && r.json.values.init_royalty_bips === '500');
+    t('fill: an integer beyond 2^53 is flagged, not filled', rep.init_serial.status === 'invalid' && /2\^53/.test(rep.init_serial.note) && !('init_serial' in r.json.values));
+    t('fill: absent keys are reported missing', rep.init_factory_covid.status === 'missing' && rep.init_scheme.status === 'missing');
+    r = await call(port, 'POST', '/api/fill', { params: [{ name: 'k', type: 'byte[32]' }], json: '{"k":"abcd"}' });
+    t('fill: wrong byte length is flagged', r.json.report[0].status === 'invalid' && /32 bytes/.test(r.json.report[0].note));
+    r = await call(port, 'POST', '/api/fill', { params: [], json: '{nope' });
+    t('fill: invalid JSON rejected', r.status === 400);
+
+    r = await call(port, 'POST', '/api/compile', { source: RELIKS.replace(/\}\n$/, ''), args: [] });
+    t('compile: structural error stops before silverc, with a log and the line',
+        r.status === 400 && Array.isArray(r.json.log) && r.json.log.some(x => x.step === 'lint' && x.level === 'error' && /line 6/.test(x.msg)));
+    r = await call(port, 'POST', '/api/compile', { source: RELIKS, args: [1, 2] });
+    t('compile: wrong argument count is caught before silverc, naming the parameters',
+        r.status === 400 && /takes 8 constructor argument/.test(r.json.error) && /init_owner/.test(r.json.error) && r.json.log.some(x => x.step === 'args' && x.level === 'error'));
+    r = await call(port, 'POST', '/api/compile', { source: 'contract X() {}', args: [] });
+    t('compile: later failures carry the log too', r.status === 400 && Array.isArray(r.json.log) && r.json.log.some(x => x.step === 'args' && x.level === 'ok'));
     r = await call(port, 'POST', '/api/compile', { source: '' });
     t('compile: empty source rejected', r.status === 400);
 

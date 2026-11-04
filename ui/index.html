@@ -32,7 +32,9 @@ th{color:var(--dim);font-weight:500}
 .err{color:var(--bad);white-space:pre-wrap;margin-top:10px;font-size:13px}
 .out{font-family:var(--mono);font-size:12.5px;word-break:break-all;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:9px;margin-top:6px}
 pre#doc{white-space:pre-wrap;word-break:break-word;font:12.5px/1.5 var(--mono);background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:10px;max-height:70vh;overflow:auto}
-.hint{color:var(--dim);font-size:12px;margin-top:4px}
+.hint{color:var(--dim);font-size:12px;margin-top:4px;white-space:pre-wrap}
+.ok{color:var(--acc);font-size:13px;margin-top:3px}
+input.sample{font-style:italic;color:var(--dim)}
 </style>
 </head>
 <body>
@@ -74,9 +76,18 @@ pre#doc{white-space:pre-wrap;word-break:break-word;font:12.5px/1.5 var(--mono);b
 <section id="t-compile">
   <div class="hint" id="cc-note"></div>
   <label for="src">Silverscript source (.sil)</label>
-  <textarea id="src" spellcheck="false" style="min-height:220px"></textarea>
-  <label for="cargs">Constructor args (JSON array, in order)</label>
-  <input id="cargs" value="[]" spellcheck="false">
+  <textarea id="src" spellcheck="false" style="min-height:220px" placeholder="Paste a contract. Its constructor is detected and sample values are filled in."></textarea>
+  <button class="go" id="detect" style="background:none;color:var(--acc);border:1px solid var(--acc)">Detect constructor</button>
+  <div id="cc-lint"></div>
+  <div id="cc-fields"></div>
+  <div class="hint" id="cc-sample-note"></div>
+  <details style="margin-top:12px"><summary class="hint">Fill from JSON (ledger, config): matches fields by name</summary>
+    <textarea id="fj" spellcheck="false" style="min-height:90px" placeholder='{"artist":"ab12...","royalty_bips":500}'></textarea>
+    <input type="file" id="fjfile" accept=".json,application/json" style="margin-top:8px">
+    <button class="go" id="fillbtn" style="background:none;color:var(--acc);border:1px solid var(--acc)">Match &amp; fill</button>
+    <div id="fj-out"></div></details>
+  <details style="margin-top:12px"><summary class="hint">Advanced: raw args JSON (overrides the fields when filled)</summary>
+    <input id="cargs" placeholder='[1, true, "ab12..."]' spellcheck="false"></details>
   <button class="go" id="compile">Compile &amp; verify</button><div id="cc-out"></div>
 </section>
 <section id="t-docs">
@@ -97,7 +108,7 @@ const h = (tag, props, ...kids) => {
 async function api(path, body) {
   const r = await fetch(path, body === undefined ? {} : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   const j = await r.json().catch(() => ({ error: 'bad response' }));
-  if (!r.ok) throw new Error(j.error || r.statusText);
+  if (!r.ok) { const e = new Error(j.error || r.statusText); e.data = j; throw e; }
   return j;
 }
 const copy = text => (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject()).catch(() => {});
@@ -179,11 +190,81 @@ $('tag').onclick = show($('tg-out'), async () => { const r = await api('/api/tag
 $('addr').onclick = show($('rd-out'), async () => { const r = await api('/api/address', { redeem_hex: $('rd').value.trim() }); return h('div', {}, h('dl', { class: 'kv' }, h('dt', {}, 'size'), h('dd', {}, r.redeem_bytes + ' B')), addrKv(r.addresses)); });
 
 // compile
-$('compile').onclick = show($('cc-out'), async () => {
-  const r = await api('/api/compile', { source: $('src').value, args: JSON.parse($('cargs').value || '[]') });
-  $('art').value = JSON.stringify(r.artifact, null, 2); adopt(r.contracts); go('artifact'); $('art-out').replaceChildren(renderContracts(r.contracts));
-  return h('div', {}, 'Compiled and verified.');
-});
+let ctor = [];
+const icon = l => (l === 'error' ? '✗ ' : l === 'warn' ? '⚠ ' : '✓ ');
+const logLine = (level, text) => h('div', { class: level === 'error' ? 'err' : level === 'warn' ? 'hint' : 'ok', style: 'margin-top:3px' }, icon(level) + text);
+function renderLog(log, hints) {
+  return h('div', { class: 'card' }, h('h3', {}, 'Log'),
+    (log || []).map(x => logLine(x.level, x.step + ': ' + x.msg)),
+    (hints || []).map(x => h('div', { style: 'margin-top:8px;font-size:13px' }, '→ ' + x)));
+}
+function ctorArg(p, i) {
+  const raw = $('ca' + i).value.trim();
+  if (p.type === 'string') return { kind: 'text', value: $('ca' + i).value };
+  if (!raw) throw new Error(p.name + ': required');
+  if (p.type === 'int') {
+    if (!/^-?\d+$/.test(raw)) throw new Error(p.name + ': expected an integer');
+    const n = Number(raw);
+    if (!Number.isSafeInteger(n)) throw new Error(p.name + ': outside the safe-integer range (±2^53-1)');
+    return n;
+  }
+  if (p.type === 'bool') { if (raw !== 'true' && raw !== 'false') throw new Error(p.name + ': expected true or false'); return raw === 'true'; }
+  const hex = raw.replace(/^0x/i, '');
+  if (!/^([0-9a-fA-F]{2})+$/.test(hex)) throw new Error(p.name + ': expected hex (even length)');
+  return hex;
+}
+const setField = (i, value, sample) => { const el = $('ca' + i); el.value = value; el.classList.toggle('sample', !!sample); };
+function updateSampleNote() {
+  const n = document.querySelectorAll('#cc-fields input.sample').length;
+  $('cc-sample-note').textContent = n ? n + ' field(s) hold SAMPLE values (italic). Fine for checking the source; replace them before deploying anything.' : '';
+}
+$('detect').onclick = async () => {
+  const box = $('cc-lint'); box.replaceChildren();
+  try {
+    const keep = {};
+    ctor.forEach((p, i) => { const el = $('ca' + i); if (el && !el.classList.contains('sample') && el.value) keep[p.name + '|' + p.type] = el.value; });
+    const r = await api('/api/ctor', { source: $('src').value });
+    const c = r.contracts[0];
+    ctor = c ? c.params : [];
+    $('cc-fields').replaceChildren(...ctor.map((p, i) => h('div', {}, h('label', { for: 'ca' + i }, p.name + ' : ' + p.type),
+      h('input', { id: 'ca' + i, spellcheck: 'false', placeholder: p.type === 'int' ? 'decimal integer' : p.type === 'bool' ? 'true | false' : p.type === 'string' ? 'text' : 'hex' }))));
+    ctor.forEach((p, i) => {
+      const k = p.name + '|' + p.type;
+      if (keep[k] !== undefined) setField(i, keep[k], false); else setField(i, p.sample || '', !!p.sample);
+      $('ca' + i).addEventListener('input', () => { $('ca' + i).classList.remove('sample'); updateSampleNote(); });
+    });
+    updateSampleNote();
+    box.append(h('div', { class: 'hint' }, c ? c.name + ': ' + ctor.length + ' constructor argument(s)' + (r.contracts.length > 1 ? ' (first contract shown)' : '') : 'No contract header found.'),
+      ...r.lint.map(l => logLine(l.level, (l.line ? 'line ' + l.line + ': ' : '') + l.msg)));
+  } catch (e) { box.append(h('div', { class: 'err' }, e.message)); }
+};
+$('src').oninput = () => { clearTimeout($('src')._t); $('src')._t = setTimeout(() => $('detect').click(), 700); };
+$('fjfile').onchange = async e => { const f = e.target.files[0]; if (f) $('fj').value = await f.text(); };
+$('fillbtn').onclick = async () => {
+  const out = $('fj-out'); out.replaceChildren();
+  try {
+    if (!ctor.length) throw new Error('Detect a constructor first');
+    const r = await api('/api/fill', { params: ctor.map(p => ({ name: p.name, type: p.type })), json: $('fj').value });
+    ctor.forEach((p, i) => { if (r.values[p.name] !== undefined) setField(i, r.values[p.name], false); });
+    updateSampleNote();
+    out.append(...r.report.map(x => logLine(x.status === 'filled' ? 'ok' : x.status === 'missing' ? 'warn' : 'error',
+      x.name + (x.status === 'filled' ? ' ← ' + x.path + ' (' + x.value.slice(0, 20) + (x.value.length > 20 ? '…' : '') + ')' : x.status === 'missing' ? ': ' + x.note : ' ← ' + x.path + ': ' + x.note))),
+      h('div', { class: 'hint' }, 'Check each match: a key with the same name can mean something different (for example a listing price vs the genesis price).'));
+  } catch (e) { out.append(h('div', { class: 'err' }, e.message)); }
+};
+$('compile').onclick = async () => {
+  const out = $('cc-out'); out.replaceChildren();
+  try {
+    const rawArgs = $('cargs').value.trim();
+    const args = rawArgs ? JSON.parse(rawArgs) : ctor.map(ctorArg);
+    const r = await api('/api/compile', { source: $('src').value, args });
+    $('art').value = JSON.stringify(r.artifact, null, 2); adopt(r.contracts); $('art-out').replaceChildren(renderContracts(r.contracts));
+    out.append(renderLog(r.log), h('button', { class: 'go', onclick: () => go('artifact') }, 'Inspect artifact'));
+  } catch (e) {
+    out.append(h('div', { class: 'err' }, e.message));
+    if (e.data && e.data.log) out.append(renderLog(e.data.log, e.data.hints));
+  }
+};
 
 // docs
 let docText = '';

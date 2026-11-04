@@ -23,7 +23,7 @@ const MAX_BODY = 2 * 1024 * 1024;
 const MAX_SOURCE = 200 * 1024;
 const DOC_ROOTS = ['README.md', 'SAFETY.md', 'SECURITY.md', 'SillyBible.md', 'platform-pins.md', 'Files-Manifest.md'];
 
-class HttpError extends Error { constructor(status, message) { super(message); this.status = status; } }
+class HttpError extends Error { constructor(status, message, extra) { super(message); this.status = status; this.extra = extra; } }
 
 // ── JSON → typed values (BigInt for ints, Buffer for byte types) ─────────────────────────────
 const hexToBuf = (v, ctx) => {
@@ -33,6 +33,7 @@ const hexToBuf = (v, ctx) => {
     return Buffer.from(h, 'hex');
 };
 function fromJson(type, v, resolveStruct, ctx) {
+    if (type.kind !== 'string' && (v === '' || v === undefined || v === null)) throw new HttpError(400, ctx + ': required');
     switch (type.kind) {
         case 'int': case 'temporal': {
             if (typeof v === 'number' && !Number.isSafeInteger(v)) throw new HttpError(400, ctx + ': use a decimal string for large integers');
@@ -102,6 +103,122 @@ function summarize(c) {
     };
 }
 
+// ── source analysis: constructor detection, lint, samples, JSON matching ────────────────────
+const stripComments = src => src
+    .replace(/\/\*[\s\S]*?\*\//g, m => m.replace(/[^\n]/g, ' '))   // keep line numbers stable
+    .replace(/\/\/[^\n]*/g, '');
+
+function parseConstructors(source) {
+    const clean = stripComments(source);
+    const out = [];
+    for (const m of clean.matchAll(/\bcontract\s+([A-Za-z_]\w*)\s*\(([^)]*)\)/g)) {
+        const params = m[2].split(',').map(x => x.trim()).filter(Boolean).map(x => {
+            const parts = x.split(/\s+/);
+            return { type: parts.slice(0, -1).join(' '), name: parts[parts.length - 1] };
+        });
+        if (params.some(p => !p.type || !/^[A-Za-z_]\w*$/.test(p.name))) throw new HttpError(400, 'could not parse constructor of ' + m[1]);
+        out.push({ name: m[1], params });
+    }
+    return out;
+}
+
+const KNOWN_TYPES = /^(int|bool|byte|string|pubkey|sig|datasig|bytes|byte\[\d*\]|int\[\d*\]|bool\[\d*\])$/;
+function lintSource(source, ctors) {
+    const out = [];
+    const clean = stripComments(source);
+    const lineOf = idx => clean.slice(0, idx).split('\n').length;
+    if (!/\bpragma\s+silverscript\b/.test(clean)) out.push({ level: 'warn', msg: 'no "pragma silverscript ^x.y.z;" line; silverc may reject the file' });
+    if (!ctors.length) out.push({ level: 'error', msg: 'no "contract Name(...)" declaration found' });
+    if (ctors.length > 1) out.push({ level: 'warn', msg: ctors.length + ' contracts found; constructor fields use the first (' + ctors[0].name + ')' });
+    // bracket balance, ignoring string literals
+    const stack = []; const pairs = { ')': '(', ']': '[', '}': '{' };
+    let line = 1, inStr = false, bad = null;
+    for (let i = 0; i < clean.length && !bad; i++) {
+        const ch = clean[i];
+        if (ch === '\n') line++;
+        else if (ch === '"' && clean[i - 1] !== '\\') inStr = !inStr;
+        else if (!inStr) {
+            if ('([{'.includes(ch)) stack.push({ ch, line });
+            else if (pairs[ch]) { const top = stack.pop(); if (!top || top.ch !== pairs[ch]) bad = { line, msg: 'unexpected "' + ch + '"' + (top ? ' (opened as "' + top.ch + '" on line ' + top.line + ')' : ' with nothing open') }; }
+        }
+    }
+    if (!bad && stack.length) { const t = stack[stack.length - 1]; bad = { line: t.line, msg: '"' + t.ch + '" opened here is never closed (' + stack.length + ' unclosed)' }; }
+    if (bad) out.push({ level: 'error', line: bad.line, msg: bad.msg });
+    for (const c of ctors) {
+        const seen = new Set();
+        for (const p of c.params) {
+            if (seen.has(p.name)) out.push({ level: 'error', msg: c.name + ': duplicate constructor parameter "' + p.name + '"' });
+            seen.add(p.name);
+            if (!KNOWN_TYPES.test(p.type)) out.push({ level: 'warn', msg: c.name + ': parameter "' + p.name + '" has type "' + p.type + '", not one the codec knows (int, bool, byte, byte[N], string, pubkey, ...)' });
+            const uses = (clean.match(new RegExp('\\b' + p.name + '\\b', 'g')) || []).length;
+            if (uses < 2) out.push({ level: 'warn', msg: c.name + ': constructor parameter "' + p.name + '" is never used', line: lineOf(clean.indexOf(p.name)) });
+        }
+    }
+    if (!out.some(x => x.level === 'error')) out.push({ level: 'ok', msg: 'structure looks sound (pre-flight only; silverc is the authority on the language)' });
+    return out;
+}
+
+function sampleFor(p, i) {
+    const t = p.type;
+    const rep = n => (((i + 1) * 17) & 255).toString(16).padStart(2, '0').repeat(n);
+    let m;
+    if ((m = /^byte\[(\d+)\]$/.exec(t))) return Number(m[1]) <= 4096 ? rep(Number(m[1])) : '';
+    if (t === 'byte') return '00';
+    if (t === 'pubkey') return rep(32);
+    if (t === 'int') return /bips|bps/i.test(p.name) ? '500' : '1';
+    if (t === 'bool') return 'false';
+    if (t === 'string') return 'sample';
+    if (t === 'byte[]' || t === 'bytes') return '00';
+    return '';
+}
+
+function flattenLeaves(v, key, out) {
+    if (v !== null && typeof v === 'object') {
+        if (Array.isArray(v)) v.forEach(x => flattenLeaves(x, key, out));
+        else for (const [k, x] of Object.entries(v)) flattenLeaves(x, k, out);
+    } else if (key !== null && ['string', 'number', 'boolean'].includes(typeof v)) out.push({ key, value: v });
+}
+function fillFromJson(params, obj) {
+    const leaves = []; flattenLeaves(obj, null, leaves);
+    const byKey = new Map();
+    for (const l of leaves) { const k = l.key.toLowerCase(); if (!byKey.has(k)) byKey.set(k, l); }
+    const values = {}, report = [];
+    for (const p of params) {
+        const names = [p.name, p.name.replace(/^(init|initial)_/, '')].map(x => x.toLowerCase());
+        const hit = names.map(n => byKey.get(n)).find(Boolean);
+        if (!hit) { report.push({ name: p.name, status: 'missing', note: 'no key named ' + names.join(' or ') + ' in the JSON' }); continue; }
+        let v = String(hit.value).trim(), note = null;
+        const t = p.type; let m;
+        if (t === 'int') { if (!/^-?\d+$/.test(v)) note = 'not an integer'; else if (!Number.isSafeInteger(Number(v))) note = 'outside ±2^53: the compile helper refuses it (rounding guard)'; }
+        else if (t === 'bool') { if (v !== 'true' && v !== 'false') note = 'not true/false'; }
+        else if ((m = /^byte\[(\d+)\]$/.exec(t))) { v = v.replace(/^0x/i, ''); if (!/^([0-9a-fA-F]{2})*$/.test(v) || v.length !== 2 * Number(m[1])) note = 'expected ' + m[1] + ' bytes (' + 2 * Number(m[1]) + ' hex chars)'; }
+        else if (t === 'byte') { if (/^\d+$/.test(v) && Number(v) < 256) v = Number(v).toString(16).padStart(2, '0'); else { v = v.replace(/^0x/i, ''); if (!/^[0-9a-fA-F]{2}$/.test(v)) note = 'expected one byte'; } }
+        if (note) report.push({ name: p.name, status: 'invalid', path: hit.key, value: String(hit.value), note });
+        else { values[p.name] = v; report.push({ name: p.name, status: 'filled', path: hit.key, value: v }); }
+    }
+    return { values, report };
+}
+
+function classifyCompileError(msg, src) {
+    const hints = [];
+    const lines = src.split('\n');
+    let m;
+    if ((m = /argument count mismatch: expected (\d+), got (\d+)/.exec(msg)))
+        hints.push('silverc expects ' + m[1] + ' constructor argument(s) and received ' + m[2] + '. Use "Detect constructor" to list them.');
+    const seen = new Set();
+    for (const x of msg.matchAll(/(?:line\s+|:)(\d+)(?::(\d+))?/g)) {
+        const n = Number(x[1]);
+        if (n >= 1 && n <= lines.length && !seen.has(n) && seen.size < 3) { seen.add(n); hints.push('line ' + n + ': ' + lines[n - 1].trim().slice(0, 140)); }
+    }
+    if (/silverc failed/.test(msg)) {
+        hints.push('The text above is silverc\'s own message; it is the authority on language and argument errors.');
+        return { step: 'silverc', hints };
+    }
+    if (/exceeding PUSHDATA2|sigscript/.test(msg)) hints.push('The contract is too large to spend: split data into chunks or shrink the program.');
+    else hints.push('silverc produced an artifact but the fail-closed checks rejected it. Do not use that artifact. Run "silly check" and report the source with the silverc revision.');
+    return { step: 'verify', hints };
+}
+
 // ── docs allowlist ───────────────────────────────────────────────────────────────────────────
 function listDocs() {
     const out = DOC_ROOTS.filter(f => fs.existsSync(path.join(ROOT, f)));
@@ -167,20 +284,64 @@ const routes = {
         if (!r.length) throw new HttpError(400, 'redeem script is empty');
         return { redeem_bytes: r.length, addresses: addresses(r) };
     },
+    'POST /api/ctor': b => {
+        const src = String(b.source || '');
+        if (src.length > MAX_SOURCE) throw new HttpError(413, 'source too large');
+        const contracts = parseConstructors(src);
+        contracts.forEach(c => c.params.forEach((p, i) => { p.sample = sampleFor(p, i); }));
+        return { contracts, lint: lintSource(src, contracts) };
+    },
+    'POST /api/fill': b => {
+        if (!Array.isArray(b.params) || b.params.length > 64) throw new HttpError(400, 'params must be an array');
+        const params = b.params.map(p => ({ name: String(p.name || ''), type: String(p.type || '') }));
+        let obj;
+        try { obj = typeof b.json === 'string' ? JSON.parse(b.json) : b.json; } catch { throw new HttpError(400, 'the pasted text is not valid JSON'); }
+        if (obj === null || typeof obj !== 'object') throw new HttpError(400, 'expected a JSON object');
+        return fillFromJson(params, obj);
+    },
     'POST /api/compile': b => {
         const src = String(b.source || '');
         if (!src.trim()) throw new HttpError(400, 'source is empty');
         if (src.length > MAX_SOURCE) throw new HttpError(413, 'source too large');
-        if (!findSilverc()) throw new HttpError(400, 'silverc not found. Run: silly setup');
         if (b.args !== undefined && !Array.isArray(b.args)) throw new HttpError(400, 'args must be a JSON array (constructor arguments, in order)');
+        const log = [];
+        const stop = (msg, hints, lint) => { throw new HttpError(400, msg, { log, hints: hints || [], lint: lint || [] }); };
+
+        let ctors = [];
+        try { ctors = parseConstructors(src); } catch (e) { log.push({ step: 'parse', level: 'error', msg: e.message }); stop(e.message); }
+        const lint = lintSource(src, ctors);
+        for (const l of lint) log.push({ step: 'lint', level: l.level, msg: (l.line ? 'line ' + l.line + ': ' : '') + l.msg });
+        const firstErr = lint.find(l => l.level === 'error');
+        if (firstErr) stop('source check failed: ' + firstErr.msg, [], lint);
+
+        const given = b.args || [];
+        const c = ctors[0];
+        if (given.length !== c.params.length) {
+            const msg = c.name + ' takes ' + c.params.length + ' constructor argument(s) (' + c.params.map(p => p.name).join(', ') + '), got ' + given.length;
+            log.push({ step: 'args', level: 'error', msg });
+            stop(msg, ['Use "Detect constructor", then fill every field.'], lint);
+        }
+        log.push({ step: 'args', level: 'ok', msg: given.length + ' constructor argument(s) match the header' });
+
+        if (!findSilverc()) { log.push({ step: 'silverc', level: 'error', msg: 'not found' }); stop('silverc not found. Run: silly setup', ['Run: silly setup'], lint); }
+
         const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'silly-ui-'));
+        const savedLog = console.log; console.log = () => {};   // compile() reports via console; the log array replaces it
         try {
             const sil = path.join(dir, 'contract.sil'), out = path.join(dir, 'contract.json');
             fs.writeFileSync(sil, src);
             let loaded;
-            try { loaded = compile(sil, b.args || [], out); } catch (e) { throw new HttpError(400, e.message); }
-            return { artifact: JSON.parse(fs.readFileSync(out, 'utf8')), contracts: Object.values(loaded.contracts).map(summarize) };
-        } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+            try { loaded = compile(sil, given, out); }
+            catch (e) {
+                const cls = classifyCompileError(e.message, src);
+                log.push({ step: cls.step, level: 'error', msg: e.message });
+                stop(e.message, cls.hints, lint);
+            }
+            log.push({ step: 'silverc', level: 'ok', msg: 'compiled' });
+            const summaries = Object.values(loaded.contracts).map(summarize);
+            for (const sm of summaries) log.push({ step: 'verify', level: 'ok', msg: sm.name + ': ' + sm.entries.length + ' entries, bytecode ' + sm.bytecode_bytes + ' B, state ' + sm.state_span.len + ' B, template ' + sm.template_hash.slice(0, 16) + '…; tags, template hash and state span re-derived' });
+            return { artifact: JSON.parse(fs.readFileSync(out, 'utf8')), contracts: summaries, log, lint };
+        } finally { console.log = savedLog; fs.rmSync(dir, { recursive: true, force: true }); }
     },
 };
 
@@ -213,7 +374,7 @@ function createServer() {
             });
             res.end(body);
         };
-        const fail = (e) => send(e.status || 500, JSON.stringify({ error: e.status ? e.message : 'internal error' }));
+        const fail = (e) => send(e.status || 500, JSON.stringify(Object.assign({ error: e.status ? e.message : 'internal error' }, e.status ? e.extra : {})));
         try {
             // DNS-rebinding and cross-site defence: only our own loopback origin may talk to us.
             const host = String(req.headers.host || '');

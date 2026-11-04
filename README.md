@@ -4,15 +4,41 @@ Lightweight, pure-JS covenant companion to `silverc`. An end-to-end
 SilverScript toolchain for Kaspa: compile `.sil` contracts, deploy
 covenants, drive state transitions, terminate them — from Termux.
 
-**Status:** development toolkit, proven end-to-end on testnet-10 (two full
-lifecycles, on-chain, record-driven — citations in `platform-pins.md`
-§3.3b). Not yet published to npm: clone the repo and `npm install` inside it,
-or `npm install /path/to/sillyscript` from a project. Requires Node.js >= 18.
-Mainnet is not proven end-to-end: read `SAFETY.md` before using funds.
+sillyscript grew out of real Kaspa covenant work, not as a demo: it is the
+toolkit for taking a contract from source to an on-chain lifecycle, with
+the state, addresses and tags derived from the compiled artifact every
+time — never hardcoded.
+
+**Status — v1.3.0, development toolkit**
+- Proven end-to-end on testnet-10: two full lifecycles, on-chain,
+  record-driven (citations in `platform-pins.md` §3.3b).
+- Mainnet is **not** proven end-to-end: read `SAFETY.md` before using
+  funds, and never develop from your main holding wallet.
+- Not yet published to npm. Install from this repo (see below).
+- Requires Node.js >= 18. Node.js and Termux are the proven
+  environments; browser support is planned, not claimed.
 
 **Compiler dependency:** `silverc` at revision `c7d17a1`. Artifact format
 and tag derivation are revision-sensitive (`platform-pins.md` §1.6) —
 recompile and re-verify canonical contracts on any upgrade.
+
+## Install
+
+```bash
+git clone https://github.com/weirdtualguy/sillyscript.git
+cd sillyscript
+npm install
+npm test   # 476 tests across 15 self-test modules, zero FAIL
+```
+
+Or, from another project, `npm install /path/to/sillyscript`.
+To compile contracts you also need `silverc` — `node bin/silly.js setup`
+builds it from source on Termux (elsewhere it needs `git` and `cargo`
+on PATH; see [CLI](#cli)).
+
+**Keys:** the local UI never handles private keys and makes no outbound
+requests. Signing and broadcasting stay in the CLI and your scripts, with
+the key in the generated project's own `.env` — never in this repo.
 
 - **Zero-WASM**: pure JavaScript (`Buffer`, `BigInt`, `@noble/hashes`,
   `@noble/curves`). Node.js and Termux are the proven environments.
@@ -29,6 +55,18 @@ recompile and re-verify canonical contracts on any upgrade.
 - **The scaffold**: `silly init` generates a complete, proven covenant
   lifecycle — deploy, interact (re-runnable), close — driven by a single
   deployment record.
+
+---
+
+## What it is — and what it is not
+
+| | |
+|---|---|
+| A compiler companion | Compiles `.sil` via `silverc`, then verifies the artifact fail-closed before anything trusts it. |
+| A lifecycle runner | `silly init` scaffolds deploy → interact → close, driven by one deployment record, so `interact` re-runs without edits. |
+| A library | `Contract`, providers, tx assembly, sighash and wRPC broadcast, usable without the scaffold. |
+| Not a wallet | It never holds funds and the UI never sees a key; you bring a funded, dedicated dev address. |
+| Not a mainnet guarantee | Testnet-10 is proven; mainnet end-to-end is not. `SAFETY.md` is required reading, not boilerplate. |
 
 ---
 
@@ -145,7 +183,9 @@ on-chain covenant (state, script and consensus layers) and exits 1 on mismatch.
 `silly ui` serves a single-page app on `127.0.0.1` (default port 8787, `--port N` to change; works in a phone
 browser next to Termux). Tabs: verify and inspect a compiled artifact, encode an entry call into a signature
 script, derive the next redeem script and address for a state, compute dispatch tags and addresses, compile
-`.sil` source through `silverc`, and browse the docs. It never handles private keys and makes no outbound
+`.sil` source through `silverc`, and browse the docs. Paste a contract and the Compile tab detects the
+constructor, lints the source, fills sample values (or matches values from a pasted ledger or config JSON),
+and logs each stage (lint, arguments, silverc, fail-closed verification) so a failure says where and why. It never handles private keys and makes no outbound
 requests; signing and broadcasting stay in the CLI and your scripts. Requests are limited to the loopback
 origin (Host and Origin checks, strict CSP).
 
@@ -178,8 +218,14 @@ origin (Host and Origin checks, strict CSP).
 ## Tests & Docs
 
 ```bash
-npm test   # self-test modules — "ALL n PASS" lines per Files-Manifest.md, zero FAIL
+npm test   # fifteen "ALL n PASS" lines, summing to 476 tests, zero FAIL
 ```
+
+`Files-Manifest.md` is the single owner of test counts, so if a count
+here and a count there ever disagree, trust the manifest and fix this
+file. The suite includes KCC conformance vectors, the CLI, the local UI
+(including its Host/Origin guards and fail-closed artifact load), and
+offline `MockProvider` lifecycles — no network calls are needed to run it.
 
 ## Documentation
 

@@ -85,11 +85,11 @@ they do.
 | `test-kcc1.js` | 64 | KCC-1 section 6 vectors: BLAKE3, type names, pushes, scalars, composites, dispatch tags, P2SH, state, template hashes, continuation. |
 | `test-kcc2-20.js` | 16 | KCC-2 authority hashes and encodings; KCC-20 dispatch tags, 112-byte state, transfer arguments, hash chain. |
 | `test-docs.js` | 11 | SSOT module set and build, unique heading ids, KCC headers, local links, every `test-*.js` wired into `npm test`. |
-| `test-ui.js` | 33 | Local UI: Host/Origin guards, CSP, fail-closed artifact load, encode/state/tag/address parity, docs allowlist, front-end sanity. |
+| `test-ui.js` | 52 | Local UI: Host/Origin guards, CSP, fail-closed artifact load, encode/state/tag/address parity, docs allowlist, front-end sanity. |
 | `test-cli.js` | 12 | Offline CLI smoke tests: version, unknown command, project-name and `--rev` validation, scaffold contents, `.env` mode 0600, `silly check`. |
 | `kaspa-wrpc.js` | 36 | wRPC broadcast: gauntlet-B4 schema, BigInt serialization, rotation on error and rejection. |
 
-**Total: 457 tests across 15 self-test modules** — `npm test` prints fifteen
+**Total: 476 tests across 15 self-test modules** — `npm test` prints fifteen
 `ALL n PASS` lines; their sum is the contract.
 
 ## The Scaffold — `silly init <name>`
